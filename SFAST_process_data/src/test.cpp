@@ -508,7 +508,7 @@ void FastDetectorisOuterFeature(int pix_x, int pix_y, int timesmp, bool polarity
 }
 
 static uint16_t areaEventRegsSW[AREA_NUMBER][AREA_NUMBER];
-static uint16_t areaEventThrSW = 1000;
+static uint16_t areaEventThrSW = 200;
 uint32_t currentTs = 0, lastTs = 0;
 
 void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *found_streak)
@@ -522,12 +522,13 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 	const int max_scale = 2;
 	// only check if not too close to border
 	const int cs = 4;
-	if ((x >> max_scale) < cs || (x >> max_scale) >= sensor_width_-cs - 4 ||
-			(y >> max_scale) < cs || (y >> max_scale) >= sensor_height_-cs -4)
+	if ((x >> max_scale) < cs || (x >> max_scale) >= (sensor_width_ >> max_scale) - cs ||
+			(y >> max_scale) < cs || (y >> max_scale) >= (sensor_height_ >> max_scale) - cs)
 	{
 		*found_streak = false;
 		return;
 	}
+
 
 	int pol = polarity;
 	// update SAE
@@ -535,10 +536,9 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 
 	// update sliceSW
     uint16_t c = areaEventRegsSW[x/AREA_SIZE][y/AREA_SIZE];
-    c = c + 1;
+    // x == 0 and y == 0  and timesmp == 0 means it comes from the previous manual setting not the real x, y value.
+	c = c + 1;
     areaEventRegsSW[x/AREA_SIZE][y/AREA_SIZE] = c;
-
-    glSliceIdxStreamSW << glPLActiveSliceIdxSW;  // store the curent slice index
 
     apUint1_t rotateFlg = 0;
     // The area threshold reached, rotate the slice index and clear the areaEventRegs.
@@ -583,10 +583,9 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
         }
 
         // Reset the slices.
-       for (int16_t resetCnt = 0; resetCnt < SLICE_HEIGHT * SLICE_WIDTH; resetCnt = resetCnt + 2)
+       for (int resetCnt = 0; resetCnt < SLICE_HEIGHT * SLICE_WIDTH; resetCnt = resetCnt + 1)
        {
-		   resetPixSW(resetCnt/PIXS_PER_COL, (resetCnt % PIXS_PER_COL) , (sliceIdx_t)(glPLActiveSliceIdxSW + 3));
-		   resetPixSW(resetCnt/PIXS_PER_COL, (resetCnt % PIXS_PER_COL + 1) , (sliceIdx_t)(glPLActiveSliceIdxSW + 3));
+		   resetPixSW(resetCnt%SLICE_HEIGHT, (resetCnt/SLICE_HEIGHT) , (sliceIdx_t)(glPLActiveSliceIdxSW + 3));
        }
 
     }
@@ -594,8 +593,10 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 	writePixSW(x, y, glPLActiveSliceIdxSW);
 
 	// Following slice read will be only based on slice scale 2.
+	// and slice index is the t-1 slice not the current slice.
 	int pix_x = x/4;
 	int pix_y = y/4;
+	sliceIdx_t readSliceIdx = glPLActiveSliceIdxSW + 1;
 
 	// Reset found_streak at first.
     *found_streak = false;
@@ -604,7 +605,7 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 	std::cout << "Idx Inner Data SW is: " << std::endl;
 	for (int i=0; i<INNER_SIZE; i++)
 	{
-		cout << slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle1_[i][1]][pix_x+circle1_[i][0]] << "\t";
+		cout << slicesScale2SW[readSliceIdx][pix_y+circle1_[i][1]][pix_x+circle1_[i][0]] << "\t";
 	}
 	std::cout << std::endl;
 #endif
@@ -614,18 +615,18 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
     FastDetectorisFeature_label2:for (int streak_size = 3; streak_size<=6; streak_size++)
     {
       // check that streak event is larger than neighbor
-      if ((slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle1_[i][1]][pix_x+circle1_[i][0]]) <  (slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle1_[(i-1+INNER_SIZE)%INNER_SIZE][1]][pix_x+circle1_[(i-1+INNER_SIZE)%INNER_SIZE][0]]))
+      if ((slicesScale2SW[readSliceIdx][pix_y+circle1_[i][1]][pix_x+circle1_[i][0]]) <  (slicesScale2SW[readSliceIdx][pix_y+circle1_[(i-1+INNER_SIZE)%INNER_SIZE][1]][pix_x+circle1_[(i-1+INNER_SIZE)%INNER_SIZE][0]]))
         continue;
 
       // check that streak event is larger than neighbor
-      if (slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle1_[(i+streak_size-1)%INNER_SIZE][1]][pix_x+circle1_[(i+streak_size-1)%INNER_SIZE][0]] < slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle1_[(i+streak_size)%INNER_SIZE][1]][pix_x+circle1_[(i+streak_size)%INNER_SIZE][0]])
+      if (slicesScale2SW[readSliceIdx][pix_y+circle1_[(i+streak_size-1)%INNER_SIZE][1]][pix_x+circle1_[(i+streak_size-1)%INNER_SIZE][0]] < slicesScale2SW[readSliceIdx][pix_y+circle1_[(i+streak_size)%INNER_SIZE][1]][pix_x+circle1_[(i+streak_size)%INNER_SIZE][0]])
         continue;
 
       // find the smallest timestamp in corner min_t
-      double min_t = slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle1_[i][1]][pix_x+circle1_[i][0]];
+      double min_t = slicesScale2SW[readSliceIdx][pix_y+circle1_[i][1]][pix_x+circle1_[i][0]];
       FastDetectorisFeature_label1:for (int j=1; j<streak_size; j++)
       {
-        const double tj = slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle1_[(i+j)%INNER_SIZE][1]][pix_x+circle1_[(i+j)%INNER_SIZE][0]];
+        const double tj = slicesScale2SW[readSliceIdx][pix_y+circle1_[(i+j)%INNER_SIZE][1]][pix_x+circle1_[(i+j)%INNER_SIZE][0]];
         if (tj < min_t)
           min_t = tj;
       }
@@ -634,7 +635,7 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
       bool did_break = false;
       FastDetectorisFeature_label0:for (int j=streak_size; j<INNER_SIZE; j++)
       {
-        const double tj = slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle1_[(i+j)%INNER_SIZE][1]][pix_x+circle1_[(i+j)%INNER_SIZE][0]];
+        const double tj = slicesScale2SW[readSliceIdx][pix_y+circle1_[(i+j)%INNER_SIZE][1]][pix_x+circle1_[(i+j)%INNER_SIZE][0]];
 
         if (tj >= min_t)
         {
@@ -667,7 +668,7 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 	std::cout << "Idx Outer Data SW is: " << std::endl;
 	for (int i=0; i<OUTER_SIZE; i++)
 	{
-		cout << slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle2_[i][1]][pix_x+circle2_[i][0]] << "\t";
+		cout << slicesScale2SW[readSliceIdx][pix_y+circle2_[i][1]][pix_x+circle2_[i][0]] << "\t";
 	}
 	std::cout << std::endl;
 #endif
@@ -677,17 +678,17 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
       FastDetectorisFeature_label5:for (int streak_size = 4; streak_size<=8; streak_size++)
       {
         // check that first event is larger than neighbor
-        if (slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle2_[i][1]][pix_x+circle2_[i][0]] <  slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle2_[(i-1+OUTER_SIZE)%OUTER_SIZE][1]][pix_x+circle2_[(i-1+OUTER_SIZE)%OUTER_SIZE][0]])
+        if (slicesScale2SW[readSliceIdx][pix_y+circle2_[i][1]][pix_x+circle2_[i][0]] <  slicesScale2SW[readSliceIdx][pix_y+circle2_[(i-1+OUTER_SIZE)%OUTER_SIZE][1]][pix_x+circle2_[(i-1+OUTER_SIZE)%OUTER_SIZE][0]])
           continue;
 
         // check that streak event is larger than neighbor
-        if (slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle2_[(i+streak_size-1)%OUTER_SIZE][1]][pix_x+circle2_[(i+streak_size-1)%OUTER_SIZE][0]] < slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle2_[(i+streak_size)%OUTER_SIZE][1]][pix_x+circle2_[(i+streak_size)%OUTER_SIZE][0]])
+        if (slicesScale2SW[readSliceIdx][pix_y+circle2_[(i+streak_size-1)%OUTER_SIZE][1]][pix_x+circle2_[(i+streak_size-1)%OUTER_SIZE][0]] < slicesScale2SW[readSliceIdx][pix_y+circle2_[(i+streak_size)%OUTER_SIZE][1]][pix_x+circle2_[(i+streak_size)%OUTER_SIZE][0]])
           continue;
 
-        double min_t = slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle2_[i][1]][pix_x+circle2_[i][0]];
+        double min_t = slicesScale2SW[readSliceIdx][pix_y+circle2_[i][1]][pix_x+circle2_[i][0]];
         FastDetectorisFeature_label4:for (int j=1; j<streak_size; j++)
         {
-          const double tj = slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle2_[(i+j)%OUTER_SIZE][1]][pix_x+circle2_[(i+j)%OUTER_SIZE][0]];
+          const double tj = slicesScale2SW[readSliceIdx][pix_y+circle2_[(i+j)%OUTER_SIZE][1]][pix_x+circle2_[(i+j)%OUTER_SIZE][0]];
           if (tj < min_t)
             min_t = tj;
         }
@@ -695,7 +696,7 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
         bool did_break = false;
         FastDetectorisFeature_label3:for (int j=streak_size; j<OUTER_SIZE; j++)
         {
-          const double tj = slicesScale2SW[glPLActiveSliceIdxSW][pix_y+circle2_[(i+j)%OUTER_SIZE][1]][pix_x+circle2_[(i+j)%OUTER_SIZE][0]];
+          const double tj = slicesScale2SW[readSliceIdx][pix_y+circle2_[(i+j)%OUTER_SIZE][1]][pix_x+circle2_[(i+j)%OUTER_SIZE][0]];
           if (tj >= min_t)
           {
             did_break = true;
@@ -757,6 +758,8 @@ void parseEventsSW(uint64_t * dataStream, int32_t eventsArraySize, uint64_t *eve
 //		}
 
 		SFastDetectorisFeature(x, y, ts, pol, &isCorner);
+
+	    glSliceIdxStreamSW << glPLActiveSliceIdxSW;  // store the curent slice index so the hw SFAST could rotate as the same with sw.
 
 		x = sensor_width_ - 1 - x;
 		y = sensor_height_ - 1 - y;

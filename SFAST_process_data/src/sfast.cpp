@@ -170,7 +170,7 @@ void writePix(apUint10_t x, apUint10_t y, sliceIdx_t sliceIdx)
 void resetSFASTPix(apUint10_t x, apUint10_t y, sliceIdx_t sliceIdx)
 {
 #pragma HLS INLINE
-	glPLSFASTSliceScale2[sliceIdx][y/4][x/COMBINED_PIXELS/4] = 0;
+	glPLSFASTSliceScale2[sliceIdx][y][x/COMBINED_PIXELS] = 0;
 }
 
 void writeSFASTPix(apUint10_t x, apUint10_t y, sliceIdx_t sliceIdx)
@@ -596,7 +596,14 @@ void preProcessStream(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uin
 	// A register to store current slice index and init it as 0
 	// Update it only when the input idxStreamIn is not empty;
 	static sliceIdx_t sliceIdxReg = 0;
-	if(!idxStreamIn.empty()) sliceIdxReg = idxStreamIn.read();
+	if(!idxStreamIn.empty())
+	{
+		sliceIdxReg = idxStreamIn.read();
+	}
+	else
+	{
+//		sliceIdxReg = sliceIdxReg;
+	}
 
 	ap_uint<96> tmpOutput;
 	tmpOutput[32] = ap_uint<1>(pol);
@@ -612,8 +619,8 @@ void preProcessStream(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uin
 	// Make this event an invalid event
 	// 4 is the corner block range.
 	// Remember x,y is inverted in the raw stream.
-	if ((x >> max_scale) < cs || (x >> max_scale) >= DVS_REAL_WIDTH-cs-4 ||
-			(y >> max_scale) < cs || (y >> max_scale) >= DVS_REAL_HEIGHT-cs-4)
+	if ((x >> max_scale) < cs || (x >> max_scale) >= (DVS_REAL_WIDTH >> max_scale) - cs ||
+			(y >> max_scale) < cs || (y >> max_scale) >= (DVS_REAL_HEIGHT >> max_scale) - cs)
 	{
 		x = 0;
 		y = 0;
@@ -626,6 +633,7 @@ void preProcessStream(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uin
 //		x -= cs-4;
 //		y -= cs-4;
 	}
+
 
 	xStreamOut << (X_TYPE)x;
 	yStreamOut << (Y_TYPE)y;
@@ -708,7 +716,7 @@ void rwSAEPerfectLoopStreamV2(hls::stream<X_TYPE> &xStream, hls::stream<Y_TYPE> 
 			idx = idxStream.read();
 			writeSFASTPix(x, y, idx);
 
-			resetSFASTPix(resetCnt/(PIXS_PER_COL), (resetCnt % (PIXS_PER_COL)) * COMBINED_PIXELS, (sliceIdx_t)(idx + 3));
+			resetSFASTPix(resetCnt/(PIXS_PER_COL/4), (resetCnt % (PIXS_PER_COL/4)) * COMBINED_PIXELS, (sliceIdx_t)(idx + 3));
 			resetCnt++;
 		}
 		else
@@ -746,7 +754,7 @@ void rwSAEPerfectLoopStreamV2(hls::stream<X_TYPE> &xStream, hls::stream<Y_TYPE> 
                 yInner[k] = y/4 + ap_int<4>(indexUnified(8 * k + 7, 8 * k + 4));          // Change back from unsigned to signed.
                 xInnerNewIdx[k] = xInner[k]%COMBINED_PIXELS;
 
-                tmpTmpData = readPixFromCol(glPLSFASTSliceScale2[idx][yInner[k]][xInner[k]/COMBINED_PIXELS], xInnerNewIdx[k]);
+                tmpTmpData = readPixFromCol(glPLSFASTSliceScale2[sliceIdx_t(idx + 1)][yInner[k]][xInner[k]/COMBINED_PIXELS], xInnerNewIdx[k]);
 
     			// By doing this, we can avoid swapping the data order.
                 tmpData = tmpData >> BITS_PER_PIXEL;
