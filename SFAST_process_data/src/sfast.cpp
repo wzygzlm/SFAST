@@ -836,7 +836,6 @@ template<int NPC>
 void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1> *isCorner)
 {
 #pragma HLS INLINE off
-#pragma HLS ARRAY_PARTITION variable=idxData complete dim=0
 
 	ap_uint<1> isCornerTemp = 0;
 	ap_uint<5*INNER_SIZE> tmpIdxInnerData;
@@ -864,7 +863,9 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 
 		if(size == INNER_SIZE)
 		{
-			ap_uint<1> cond[INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1][INNER_STREAK_SIZE_END + NPC - 1];
+			ap_uint<1> innerCond[INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1][INNER_STREAK_SIZE_END + NPC - 1];
+#pragma HLS ARRAY_PARTITION variable=innerCond complete dim=0
+
 			for(int innerStreakSize = INNER_STREAK_SIZE_START; innerStreakSize <= INNER_STREAK_SIZE_END; innerStreakSize++)
 			{
 				for (uint8_t m = 0; m < innerStreakSize + NPC - 1; m++)
@@ -877,7 +878,7 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 					// When we check the innner idx data, we need to remove it.
 					int mIdx = m;
 					if(m >= INNER_SIZE)  mIdx = m - INNER_SIZE;
-					cond[innerStreakSize - INNER_STREAK_SIZE_START][m] = (tmpIdxInnerData.range(5 * mIdx + 4, 5 * mIdx) >= INNER_SIZE - innerStreakSize + OUTER_SIZE - INNER_SIZE);
+					innerCond[innerStreakSize - INNER_STREAK_SIZE_START][m] = (tmpIdxInnerData.range(5 * mIdx + 4, 5 * mIdx) >= INNER_SIZE - innerStreakSize + OUTER_SIZE - INNER_SIZE);
 				}
 			}
 
@@ -888,9 +889,9 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 				for (uint8_t n = 0; n < INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1; n++)
 				{
 					tempCond[n][k] = 1;
-					for (uint8_t j = 0; j < INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + n; j++)
+					for (uint8_t j = 0; j < INNER_STREAK_SIZE_START + n; j++)
 					{
-						tempCond[n][k] &= cond[n][j + k];
+						tempCond[n][k] &= innerCond[n][j + k];
 					}
 					isCornerTemp |= tempCond[n][k];
 	//				if (isCornerTemp == 1)
@@ -910,16 +911,19 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 			}
 
 		}
-		else if(size == OUTER_SIZE)
+		else
+		if(size == OUTER_SIZE)
 		{
-			ap_uint<1> cond[OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1][OUTER_STREAK_SIZE_END + NPC - 1];
+			ap_uint<1> outerCond[OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1][OUTER_STREAK_SIZE_END + NPC - 1];
+#pragma HLS ARRAY_PARTITION variable=outerCond complete dim=0
+
 			for(int outerStreakSize = OUTER_STREAK_SIZE_START; outerStreakSize <= OUTER_STREAK_SIZE_END; outerStreakSize++)
 			{
 				for (uint8_t m = 0; m < outerStreakSize + NPC - 1; m++)
 				{
 					int mIdx = m;
 					if(m >= OUTER_SIZE)  mIdx = m - OUTER_SIZE;
-					cond[outerStreakSize - OUTER_STREAK_SIZE_START][m] = (tmpIdxOuterData.range(5 * mIdx + 4, 5 * mIdx) >= OUTER_SIZE - outerStreakSize);
+					outerCond[outerStreakSize - OUTER_STREAK_SIZE_START][m] = (tmpIdxOuterData.range(5 * mIdx + 4, 5 * mIdx) >= OUTER_SIZE - outerStreakSize);
 				}
 			}
 
@@ -930,9 +934,9 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 				for (uint8_t n = 0; n < OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1; n++)
 				{
 					tempCond[n][k] = 1;
-					for (uint8_t j = 0; j < OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + n; j++)
+					for (uint8_t j = 0; j < OUTER_STREAK_SIZE_START + n; j++)
 					{
-						tempCond[n][k] &= cond[n][j + k];
+						tempCond[n][k] &= outerCond[n][j + k];
 					}
 					isCornerTemp |= tempCond[n][k];
 //					if (tempCond[n][k] == 1)

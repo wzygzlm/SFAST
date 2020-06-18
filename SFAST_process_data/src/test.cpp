@@ -613,7 +613,7 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 
   isFeatureOutterLoop:for (int i=0; i<INNER_SIZE; i++)
   {
-    FastDetectorisFeature_label2:for (int streak_size = 3; streak_size<=6; streak_size++)
+    FastDetectorisFeature_label2:for (int streak_size = INNER_STREAK_SIZE_START; streak_size<=INNER_STREAK_SIZE_END; streak_size++)
     {
       // check that streak event is larger than neighbor
       if ((slicesScale2SW[readSliceIdx][pix_y+circle1_[i][1]][pix_x+circle1_[i][0]]) <  (slicesScale2SW[readSliceIdx][pix_y+circle1_[(i-1+INNER_SIZE)%INNER_SIZE][1]][pix_x+circle1_[(i-1+INNER_SIZE)%INNER_SIZE][0]]))
@@ -674,7 +674,7 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 	std::cout << std::endl;
 #endif
 
-	FastDetectorisFeature_label5:for (int streak_size = 4; streak_size<=8; streak_size++)
+	FastDetectorisFeature_label5:for (int streak_size = OUTER_STREAK_SIZE_START; streak_size<=OUTER_STREAK_SIZE_END; streak_size++)
      {
         FastDetectorisFeature_label6:for (int i=0; i<OUTER_SIZE; i++)
         {
