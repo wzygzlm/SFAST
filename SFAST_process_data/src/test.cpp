@@ -510,6 +510,7 @@ void FastDetectorisOuterFeature(int pix_x, int pix_y, int timesmp, bool polarity
 static uint16_t areaEventRegsSW[AREA_NUMBER][AREA_NUMBER];
 static uint16_t areaEventThrSW = 200;
 uint32_t currentTs = 0, lastTs = 0;
+static uint8_t glSFASTThr = 0;
 
 void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *found_streak)
 {
@@ -673,10 +674,10 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 	std::cout << std::endl;
 #endif
 
-    FastDetectorisFeature_label6:for (int i=0; i<OUTER_SIZE; i++)
-    {
-      FastDetectorisFeature_label5:for (int streak_size = 4; streak_size<=8; streak_size++)
-      {
+	FastDetectorisFeature_label5:for (int streak_size = 4; streak_size<=8; streak_size++)
+     {
+        FastDetectorisFeature_label6:for (int i=0; i<OUTER_SIZE; i++)
+        {
         // check that first event is larger than neighbor
         if (slicesScale2SW[readSliceIdx][pix_y+circle2_[i][1]][pix_x+circle2_[i][0]] <  slicesScale2SW[readSliceIdx][pix_y+circle2_[(i-1+OUTER_SIZE)%OUTER_SIZE][1]][pix_x+circle2_[(i-1+OUTER_SIZE)%OUTER_SIZE][0]])
           continue;
@@ -697,7 +698,8 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
         FastDetectorisFeature_label3:for (int j=streak_size; j<OUTER_SIZE; j++)
         {
           const double tj = slicesScale2SW[readSliceIdx][pix_y+circle2_[(i+j)%OUTER_SIZE][1]][pix_x+circle2_[(i+j)%OUTER_SIZE][0]];
-          if (tj >= min_t)
+          // Check if all the values not inside the streak are smaller than the mimimum of streak values minus a threshold value
+          if (tj >= min_t - glSFASTThr)
           {
             did_break = true;
             break;
@@ -707,7 +709,7 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
         if (!did_break)
         {
           *found_streak = true;
-#if DEBUG
+#if OUTER_STREAK_INFO_DEBUG
 		  cout << "Outer Corner position is : " << i << " and streak size is: " << streak_size << endl;
 #endif
 		  break;
@@ -874,6 +876,10 @@ int main ()
 
 		for (int count = 0; count < eventCnt; count = count + GROUP_EVENTS_NUM)
 		{
+			if(k == 7 && count == 1966)
+			{
+				int tmp = 0;
+			}
 			for(int processCnt = 0; processCnt < GROUP_EVENTS_NUM; processCnt++)
 			{
 				int currentIdx = count + processCnt%GROUP_EVENTS_NUM;

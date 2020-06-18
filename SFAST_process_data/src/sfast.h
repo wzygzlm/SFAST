@@ -8,6 +8,7 @@
 #include "assert.h"
 
 #define DEBUG 0
+#define OUTER_STREAK_INFO_DEBUG 0
 
 #define CUST_DATA_MASK 0x3ff
 #define POLARITY_SHIFT 1
@@ -56,6 +57,11 @@
 
 #define INNER_SIZE 8
 #define OUTER_SIZE 12
+
+#define INNER_STREAK_SIZE_START 3
+#define INNER_STREAK_SIZE_END 6
+#define OUTER_STREAK_SIZE_START 4
+#define OUTER_STREAK_SIZE_END 8
 
 typedef struct
 {

@@ -826,10 +826,11 @@ assert(size <= OUTER_SIZE);
 			}
 			dataToBeComp = dataToBeComp >> BITS_PER_PIXEL;
 			tmpDataRet.range(5*OUTER_SIZE - 1, 5*OUTER_SIZE - 5) = tmpIdx;
-			*newIdx = tmpDataRet;
 		}
 	}
+	*newIdx = tmpDataRet;
 }
+
 
 template<int NPC>
 void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1> *isCorner)
@@ -842,6 +843,12 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 	ap_uint<5*OUTER_SIZE> tmpIdxOuterData;
 	ap_uint<5> idxInnerData[INNER_SIZE];
 	ap_uint<5> idxOuterData[OUTER_SIZE];
+
+	// This list is used to record the outer corner result for all different size streak.
+	ap_uint<1> streakOutCorner[5] = {0, 0, 0, 0, 0};
+	ap_uint<8> streakStartPosOutCorner[5] = {0, 0, 0, 0, 0};
+	ap_uint<8> streakSizeOutCorner[5] = {0, 0, 0, 0, 0};
+	ap_uint<8> streakOutCornerCnt = 0;
 
 	for(uint8_t i = 0; i < OUTER_SIZE; i = i + NPC)
 	{
@@ -857,44 +864,31 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 
 		if(size == INNER_SIZE)
 		{
-			ap_uint<1> cond[4][6 + NPC - 1];
-			for (uint8_t m = 0; m < 3 + NPC - 1; m++)
+			ap_uint<1> cond[INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1][INNER_STREAK_SIZE_END + NPC - 1];
+			for(int innerStreakSize = INNER_STREAK_SIZE_START; innerStreakSize <= INNER_STREAK_SIZE_END; innerStreakSize++)
 			{
-				// The condition should be the idxData > (INNER_SIZE -3).
-				// However, in order to make the idxSorted could be shared by inner circle and outer circle together.
-				// We use a method that compare "size" values to all the input data which has OUTER_SIZE values in total.
-				// On the other hand, if the valid input data number is less than OUTER_SIZE, the other input data will be filled with 0.
-				// Thus, all the idxData for inner circle value will be added 4 (OUTER_SIZE - INNER_SIZE = 20 - 16 =4)
-				// When we check the innner idx data, we need to remove it.
-				cond[0][m] = (tmpIdxInnerData.range(5 * m + 4, 5 * m) >= INNER_SIZE - 3 + OUTER_SIZE - INNER_SIZE);
+				for (uint8_t m = 0; m < innerStreakSize + NPC - 1; m++)
+				{
+					// The condition should be the idxData > (INNER_SIZE -3).
+					// However, in order to make the idxSorted could be shared by inner circle and outer circle together.
+					// We use a method that compare "size" values to all the input data which has OUTER_SIZE values in total.
+					// On the other hand, if the valid input data number is less than OUTER_SIZE, the other input data will be filled with 0.
+					// Thus, all the idxData for inner circle value will be added 4 (OUTER_SIZE - INNER_SIZE = 20 - 16 =4)
+					// When we check the innner idx data, we need to remove it.
+					int mIdx = m;
+					if(m >= INNER_SIZE)  mIdx = m - INNER_SIZE;
+					cond[innerStreakSize - INNER_STREAK_SIZE_START][m] = (tmpIdxInnerData.range(5 * mIdx + 4, 5 * mIdx) >= INNER_SIZE - innerStreakSize + OUTER_SIZE - INNER_SIZE);
+				}
 			}
 
-			ap_uint<1> cond2[4 + NPC - 1];
-			for (uint8_t m = 0; m < 4 + NPC - 1; m++)
-			{
-				cond[1][m] = (tmpIdxInnerData.range(5 * m + 4, 5 * m) >= INNER_SIZE - 4 + OUTER_SIZE - INNER_SIZE);
-			}
-
-			ap_uint<1> cond3[5 + NPC - 1];
-			for (uint8_t m = 0; m < 5 + NPC - 1; m++)
-			{
-				cond[2][m] = (tmpIdxInnerData.range(5 * m + 4, 5 * m) >= INNER_SIZE - 5 + OUTER_SIZE - INNER_SIZE);
-			}
-
-			ap_uint<1> cond4[6 + NPC - 1];
-			for (uint8_t m = 0; m < 6 + NPC - 1; m++)
-			{
-				cond[3][m] = (tmpIdxInnerData.range(5 * m + 4, 5 * m) >= INNER_SIZE - 6 + OUTER_SIZE - INNER_SIZE);
-			}
-
-			ap_uint<1> tempCond[4][NPC];
+			ap_uint<1> tempCond[INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1][NPC];
 
 			for (uint8_t k = 0; k < NPC; k++)
 			{
-				for (uint8_t n = 0; n < 4; n++)
+				for (uint8_t n = 0; n < INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1; n++)
 				{
 					tempCond[n][k] = 1;
-					for (uint8_t j = 0; j < 3 + n; j++)
+					for (uint8_t j = 0; j < INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + n; j++)
 					{
 						tempCond[n][k] &= cond[n][j + k];
 					}
@@ -918,54 +912,34 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 		}
 		else if(size == OUTER_SIZE)
 		{
-			ap_uint<1> cond[5][8 + NPC - 1];
-			for (uint8_t m = 0; m < 4 + NPC - 1; m++)
+			ap_uint<1> cond[OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1][OUTER_STREAK_SIZE_END + NPC - 1];
+			for(int outerStreakSize = OUTER_STREAK_SIZE_START; outerStreakSize <= OUTER_STREAK_SIZE_END; outerStreakSize++)
 			{
-				cond[0][m] = (tmpIdxOuterData.range(5 * m + 4, 5 * m) >= OUTER_SIZE - 4);
+				for (uint8_t m = 0; m < outerStreakSize + NPC - 1; m++)
+				{
+					int mIdx = m;
+					if(m >= OUTER_SIZE)  mIdx = m - OUTER_SIZE;
+					cond[outerStreakSize - OUTER_STREAK_SIZE_START][m] = (tmpIdxOuterData.range(5 * mIdx + 4, 5 * mIdx) >= OUTER_SIZE - outerStreakSize);
+				}
 			}
 
-			ap_uint<1> cond2[5 + NPC - 1];
-			for (uint8_t m = 0; m < 5 + NPC - 1; m++)
-			{
-				cond[1][m] = (tmpIdxOuterData.range(5 * m + 4, 5 * m) >= OUTER_SIZE - 5);
-			}
-
-			ap_uint<1> cond3[6 + NPC - 1];
-			for (uint8_t m = 0; m < 6 + NPC - 1; m++)
-			{
-				cond[2][m] = (tmpIdxOuterData.range(5 * m + 4, 5 * m) >= OUTER_SIZE - 6);
-			}
-
-			ap_uint<1> cond4[7 + NPC - 1];
-			for (uint8_t m = 0; m < 7 + NPC - 1; m++)
-			{
-				cond[3][m] = (tmpIdxOuterData.range(5 * m + 4, 5 * m) >= OUTER_SIZE - 7);
-			}
-
-			ap_uint<1> cond5[8 + NPC - 1];
-			for (uint8_t m = 0; m < 8 + NPC - 1; m++)
-			{
-				cond[4][m] = (tmpIdxOuterData.range(5 * m + 4, 5 * m) >= OUTER_SIZE - 8);
-			}
-
-			ap_uint<1> tempCond[5][NPC];
+			ap_uint<1> tempCond[OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1][NPC];
 
 			for (uint8_t k = 0; k < NPC; k++)
 			{
-				for (uint8_t n = 0; n < 5; n++)
+				for (uint8_t n = 0; n < OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1; n++)
 				{
 					tempCond[n][k] = 1;
-					for (uint8_t j = 0; j < 4 + n; j++)
+					for (uint8_t j = 0; j < OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + n; j++)
 					{
 						tempCond[n][k] &= cond[n][j + k];
 					}
 					isCornerTemp |= tempCond[n][k];
-	//				if (isCornerTemp == 1)
-	//				{
-	//					*isCorner = isCornerTemp ;
-	//					std::cout << "HW: Position is :" << (int)(i + k) << " and streak size is: " << (int)(n + 4) << std::endl;
-	//					return;
-	//				}
+//					if (tempCond[n][k] == 1)
+//					{
+//						streakOutCornerCnt++;
+//						std::cout << "HW: Streak corner "<< streakOutCornerCnt << ". Position is :" << (int)(i + k) << " and streak size is: " << (int)(n + 4) << std::endl;
+//					}
 				}
 			}
 
@@ -981,6 +955,7 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 			break;
 		}
 	}
+
 	*isCorner = isCornerTemp;
 }
 
