@@ -718,6 +718,12 @@ void rwSAEPerfectLoopStreamV2(hls::stream<X_TYPE> &xStream, hls::stream<Y_TYPE> 
 
 			resetSFASTPix(resetCnt/(PIXS_PER_COL/4), (resetCnt % (PIXS_PER_COL/4)) * COMBINED_PIXELS, (sliceIdx_t)(idx + 3));
 			resetCnt++;
+
+			if(x == 0 && y == 0 && ts == 0)
+			{
+				size = 0;
+				break;
+			}
 		}
 		else
 		{
@@ -784,10 +790,39 @@ void testRWSAEPerfectLoopStreamV2(hls::stream<X_TYPE> &xStream, hls::stream<Y_TY
 	rwSAEPerfectLoopStreamV2<2>(xStream, yStream, polStream, idxStream, tsStream, outputDataStream, sizeStreamOut1, sizeStreamOut2);
 }
 
+template<int UNIT_DATA_BITS, int WIDE_DATA_BITS>
+ap_uint< UNIT_DATA_BITS > readUnitDataFromWideData(ap_uint< WIDE_DATA_BITS > colData, uint8_t idx)
+{
+#pragma HLS INLINE
+	ap_uint< UNIT_DATA_BITS > retData;
+	// Use bit selection plus for-loop to read multi-bits from a wider bit width value
+	// rather than use range selection directly. The reason is that the latter will use
+	// a lot of shift-register which will increase a lot of LUTs consumed.
+	ap_uint<8> colIndexBase = UNIT_DATA_BITS*idx;
+	readWiderBitsLoop: for(int8_t yIndex = 0; yIndex < UNIT_DATA_BITS; yIndex++)
+	{
+#pragma HLS UNROLL
+		retData[yIndex] = colData[colIndexBase + yIndex];
+	}
+	return retData;
+}
+
+template<int UNIT_DATA_BITS, int WIDE_DATA_BITS>
+void WriteUnitDataToWideData(ap_uint< WIDE_DATA_BITS > *colData, uint8_t idx, ap_uint< UNIT_DATA_BITS > pixData)
+{
+#pragma HLS INLINE
+	ap_uint<8> colIndexBase = UNIT_DATA_BITS*idx;
+	writeWiderBitsLoop: for(int8_t yIndex = 0; yIndex < UNIT_DATA_BITS; yIndex++)
+	{
+#pragma HLS UNROLL
+		(*colData)[colIndexBase + yIndex] = pixData[yIndex];
+	}
+}
+
 // Function Description: convert the current data array to sorted idx array.
 // Compared with V2, this version use a lot of shift logic tricks and it saves a lot of LUTs (most of them are MUXs).
 template<int NPC>
-void sortedIdxStreamV3(hls::stream< ap_uint<BITS_PER_PIXEL * OUTER_SIZE> > &tsStream, ap_uint<5> size, ap_uint<5*OUTER_SIZE> *newIdx)
+void sortedIdxStreamV3(hls::stream< ap_uint<BITS_PER_PIXEL * OUTER_SIZE> > &tsStream, ap_uint<5> size, ap_uint<5*OUTER_SIZE> *newIdx, ap_uint<BITS_PER_PIXEL * OUTER_SIZE> *sortedData)
 {
 assert(size <= OUTER_SIZE);
 #pragma HLS INLINE off
@@ -796,6 +831,11 @@ assert(size <= OUTER_SIZE);
 
 	ap_uint<5*OUTER_SIZE> tmpDataRet = 0;
 	ap_uint<BITS_PER_PIXEL * OUTER_SIZE> dataToBeComp = tmpData;
+
+	ap_uint<BITS_PER_PIXEL * OUTER_SIZE> sortedDataRet;
+
+	// This array is used to record same elements. All the initial value is 0.
+	ap_uint<5*OUTER_SIZE> accessCntIdx = 0;
 
 	for(uint8_t i = 0; i < OUTER_SIZE/NPC; i = i + 1)
 	{
@@ -824,16 +864,29 @@ assert(size <= OUTER_SIZE);
 					tsWideData = tsWideData >> BITS_PER_PIXEL;
 				}
 			}
-			dataToBeComp = dataToBeComp >> BITS_PER_PIXEL;
+			// Read current access times
+			ap_uint<5> currentAccessTime = readUnitDataFromWideData<5, 5*OUTER_SIZE>(accessCntIdx, tmpIdx);
+			// The real order of a value in the list consists of how many elements is smaller than it and
+			// the repeat order.
+			ap_uint<5> newTmpIdxWithoutRepeat = tmpIdx + currentAccessTime;
+			currentAccessTime += 1;
+			// Write it back
+			WriteUnitDataToWideData<5, 5*OUTER_SIZE>(&accessCntIdx, tmpIdx, currentAccessTime);
+
+			// Store the data in a sorted list considering repeat elements.
+			WriteUnitDataToWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(&sortedDataRet, newTmpIdxWithoutRepeat, dataToBeComp.range(BITS_PER_PIXEL - 1, 0));
+
 			tmpDataRet.range(5*OUTER_SIZE - 1, 5*OUTER_SIZE - 5) = tmpIdx;
+			dataToBeComp = dataToBeComp >> BITS_PER_PIXEL;
 		}
 	}
 	*newIdx = tmpDataRet;
+	*sortedData = sortedDataRet;
 }
 
 
 template<int NPC>
-void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1> *isCorner)
+void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * OUTER_SIZE> sortedData, ap_uint<5> size, ap_uint<1> *isCorner)
 {
 #pragma HLS INLINE off
 
@@ -842,6 +895,7 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 	ap_uint<5*OUTER_SIZE> tmpIdxOuterData;
 	ap_uint<5> idxInnerData[INNER_SIZE];
 	ap_uint<5> idxOuterData[OUTER_SIZE];
+	ap_uint<BITS_PER_PIXEL> rawSliceDataArray[OUTER_SIZE];
 
 	// This list is used to record the outer corner result for all different size streak.
 	ap_uint<1> streakOutCorner[5] = {0, 0, 0, 0, 0};
@@ -863,7 +917,7 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 
 		if(size == INNER_SIZE)
 		{
-			ap_uint<1> innerCond[INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1][INNER_STREAK_SIZE_END + NPC - 1];
+			ap_uint<1> innerCond[INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1][INNER_STREAK_SIZE_END + NPC - 1] = {0};
 #pragma HLS ARRAY_PARTITION variable=innerCond complete dim=0
 
 			for(int innerStreakSize = INNER_STREAK_SIZE_START; innerStreakSize <= INNER_STREAK_SIZE_END; innerStreakSize++)
@@ -884,16 +938,16 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 
 			ap_uint<1> tempCond[INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1][NPC];
 
-			for (uint8_t k = 0; k < NPC; k++)
+			for (uint8_t position = 0; position < NPC; position++)
 			{
-				for (uint8_t n = 0; n < INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1; n++)
+				for (uint8_t streakSizeIdx = 0; streakSizeIdx < INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1; streakSizeIdx++)
 				{
-					tempCond[n][k] = 1;
-					for (uint8_t j = 0; j < INNER_STREAK_SIZE_START + n; j++)
+					tempCond[streakSizeIdx][position] = 1;
+					for (uint8_t j = 0; j < INNER_STREAK_SIZE_START + streakSizeIdx; j++)
 					{
-						tempCond[n][k] &= innerCond[n][j + k];
+						tempCond[streakSizeIdx][position] &= innerCond[streakSizeIdx][j + position];
 					}
-					isCornerTemp |= tempCond[n][k];
+					isCornerTemp |= tempCond[streakSizeIdx][position];
 	//				if (isCornerTemp == 1)
 	//				{
 	//					*isCorner = isCornerTemp ;
@@ -914,7 +968,7 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 		else
 		if(size == OUTER_SIZE)
 		{
-			ap_uint<1> outerCond[OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1][OUTER_STREAK_SIZE_END + NPC - 1];
+			ap_uint<1> outerCond[OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1][OUTER_STREAK_SIZE_END + NPC - 1] = {0};
 #pragma HLS ARRAY_PARTITION variable=outerCond complete dim=0
 
 			for(int outerStreakSize = OUTER_STREAK_SIZE_START; outerStreakSize <= OUTER_STREAK_SIZE_END; outerStreakSize++)
@@ -929,20 +983,38 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<5> size, ap_uint<1
 
 			ap_uint<1> tempCond[OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1][NPC];
 
-			for (uint8_t k = 0; k < NPC; k++)
+			for (uint8_t position = 0; position < NPC; position++)
 			{
-				for (uint8_t n = 0; n < OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1; n++)
+				for (uint8_t streakSizeIdx = 0; streakSizeIdx < OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1; streakSizeIdx++)
 				{
-					tempCond[n][k] = 1;
-					for (uint8_t j = 0; j < OUTER_STREAK_SIZE_START + n; j++)
+					tempCond[streakSizeIdx][position] = 1;
+					for (uint8_t j = 0; j < OUTER_STREAK_SIZE_START + streakSizeIdx; j++)
 					{
-						tempCond[n][k] &= outerCond[n][j + k];
+						tempCond[streakSizeIdx][position] &= outerCond[streakSizeIdx][j + position];
 					}
-					isCornerTemp |= tempCond[n][k];
-//					if (tempCond[n][k] == 1)
+
+					// Check if the minimum of streak value is bigger than the maximum of non-streak value plus a threshold value
+					uint8_t streakSize = OUTER_STREAK_SIZE_START + streakSizeIdx;
+					ap_uint<BITS_PER_PIXEL> minStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize);
+					ap_uint<BITS_PER_PIXEL> maxNonStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize - 1);
+
+					isCornerTemp |= tempCond[streakSizeIdx][position] & (minStreakValue > maxNonStreakValue + SFAST_THRESHOLD);
+//					if (tempCond[streakSizeIdx][position] == 1)
 //					{
-//						streakOutCornerCnt++;
-//						std::cout << "HW: Streak corner "<< streakOutCornerCnt << ". Position is :" << (int)(i + k) << " and streak size is: " << (int)(n + 4) << std::endl;
+//						uint8_t streakSize = OUTER_STREAK_SIZE_START + streakSizeIdx;
+//						ap_uint<BITS_PER_PIXEL> minStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize);
+//						ap_uint<BITS_PER_PIXEL> maxNonStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize - 1);
+//
+//						if(minStreakValue > maxNonStreakValue)
+//						{
+//							isCornerTemp = 1;
+//						}
+//						else
+//						{
+//							isCornerTemp = 0;
+//						}
+////						streakOutCornerCnt++;
+////						std::cout << "HW: Streak corner "<< streakOutCornerCnt << ". Position is :" << (int)(i + position) << " and streak size is: " << (int)(streakSizeIdx + 4) << std::endl;
 //					}
 				}
 			}
@@ -1138,6 +1210,7 @@ void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_u
 	hls::stream< ap_uint<1> > stageCornerStream("stageCornerStream");
 
 	ap_uint<5*OUTER_SIZE> idxDataWide;
+	ap_uint<BITS_PER_PIXEL * OUTER_SIZE> sortedData;
     ap_uint<5> idxData[OUTER_SIZE];
     ap_uint<1> isStageCorner;
 
@@ -1156,7 +1229,7 @@ void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_u
 //		convertInterface<4>(outer, size1, inStream);
 //		sizeStream2 >> size2;
 //		sortedIdxStream<5>(inStream, size1, idxData);
-		sortedIdxStreamV3<4>(inStream, size1, &idxDataWide);
+		sortedIdxStreamV3<4>(inStream, size1, &idxDataWide, &sortedData);
 		getIdxDataRegion:
 		{
 //			for(int i = 0; i < OUTER_SIZE; i++)
@@ -1167,7 +1240,7 @@ void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_u
 //			}
 //			sizeStream2 >> size2;
 		}
-		checkIdxGeneralV3<4>(idxDataWide, size2, &isStageCorner);   // If resource is not enough, decrease this number to increase II a little.
+		checkIdxGeneralV3<4>(idxDataWide, sortedData, size2, &isStageCorner);   // If resource is not enough, decrease this number to increase II a little.
 		feedbackInterleaveStream(isStageCorner, stageCornerStream);
 	}
     Output: combineOutputStream(pktEventDataStream, stageCornerStream, xStreamOut, yStreamOut, polStreamOut, tsStreamOut, isFinalCornerStream);

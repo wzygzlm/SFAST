@@ -510,7 +510,6 @@ void FastDetectorisOuterFeature(int pix_x, int pix_y, int timesmp, bool polarity
 static uint16_t areaEventRegsSW[AREA_NUMBER][AREA_NUMBER];
 static uint16_t areaEventThrSW = 200;
 uint32_t currentTs = 0, lastTs = 0;
-static uint8_t glSFASTThr = 0;
 
 void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *found_streak)
 {
@@ -699,7 +698,7 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
         {
           const double tj = slicesScale2SW[readSliceIdx][pix_y+circle2_[(i+j)%OUTER_SIZE][1]][pix_x+circle2_[(i+j)%OUTER_SIZE][0]];
           // Check if all the values not inside the streak are smaller than the mimimum of streak values minus a threshold value
-          if (tj >= min_t - glSFASTThr)
+          if (tj >= min_t - SFAST_THRESHOLD)
           {
             did_break = true;
             break;
@@ -789,7 +788,7 @@ int main ()
     int total_err_cnt = 0;
 	int retval=0;
 	/******************* Test EVFastCornerStreamNoAxiLite module from random value**************************/
-	srand(2);
+	srand(1);
 //	srand((unsigned)time(NULL));
 
 	int32_t eventCnt = 8000;

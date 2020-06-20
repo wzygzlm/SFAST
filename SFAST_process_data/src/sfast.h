@@ -63,6 +63,9 @@
 #define OUTER_STREAK_SIZE_START 3
 #define OUTER_STREAK_SIZE_END OUTER_SIZE-1
 
+// SFAST hyperparameter : threshold
+#define SFAST_THRESHOLD  2
+
 typedef struct
 {
 	uint64_t inEventsNum;
