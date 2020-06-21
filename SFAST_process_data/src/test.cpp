@@ -724,11 +724,11 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 		if (!did_break)
 		{
 			outerI = i;
+			outerStreakSize = streak_size;
             outerStartX = circle2_[outerI%OUTER_SIZE][0];
             outerEndX = circle2_[(outerI + outerStreakSize - 1)%OUTER_SIZE][0];
             outerStartY = circle2_[outerI%OUTER_SIZE][1];
             outerEndY = circle2_[(outerI + outerStreakSize - 1)%OUTER_SIZE][1];
-			outerStreakSize = streak_size;
 
             int condDiff = (streak_size%2 == 1) ? 0 : 1;  // If streak_size is even, then set it to 1. Otherwise 0.
 
@@ -911,7 +911,7 @@ int main ()
 
 		for (int count = 0; count < eventCnt; count = count + GROUP_EVENTS_NUM)
 		{
-			if(k == 7 && count == 1930)
+			if(k == 7 && count == 1908)
 			{
 				int tmp = 0;
 			}

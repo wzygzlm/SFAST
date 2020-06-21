@@ -1130,14 +1130,40 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * O
 void finalCornerChecking(ap_uint<1> isCornerIn, ap_uint<1> *isCornerOut)
 {
 	ap_uint<1> isCornerRet = 0;
-	if(isCornerIn == 0 || glFinalMaxOuterStreakSize != 7 || glFinalMaxOuterStreakStartPosition != 9)
+
+	if(isCornerIn == 0)
 	{
 		isCornerRet = 0;
 	}
 	else
 	{
-		isCornerRet = 1;
+		uint8_t outerStartIdx = glFinalMaxOuterStreakStartPosition;
+		uint8_t outerEndIdx = (glFinalMaxOuterStreakStartPosition + glFinalMaxOuterStreakSize - 1);
+		if(outerEndIdx >= OUTER_SIZE)
+		{
+			outerEndIdx = outerEndIdx - OUTER_SIZE;
+		}
+
+		ap_uint<8> outerStart = readUnitDataFromWideData<8, 96>(outerTest, outerStartIdx);
+		ap_uint<8> outerEnd = readUnitDataFromWideData<8, 96>(outerTest, outerEndIdx);
+
+		ap_int<4> outerStartX = outerStart.range(3,0);
+	    ap_int<4> outerEndX = outerEnd.range(3,0);
+	    ap_int<4> outerStartY = outerStart.range(7,4);
+	    ap_int<4> outerEndY = outerEnd.range(7,4);
+
+		ap_uint<1> condDiff = (glFinalMaxOuterStreakSize%2 == 1) ? 0 : 1;
+
+		if( glFinalMaxOuterStreakSize == OUTER_SIZE - 1 || abs(outerStartX - outerEndX) <= condDiff  || abs(outerStartY - outerEndY) <= condDiff )
+		{
+			isCornerRet = 0;
+		}
+		else
+		{
+			isCornerRet = 1;
+		}
 	}
+
 	*isCornerOut = isCornerRet;
 }
 
