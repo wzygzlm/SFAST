@@ -41,6 +41,18 @@ static pix_t slicesScale2SW[SLICES_NUMBER][SLICE_WIDTH/4][SLICE_HEIGHT/4];
 static sliceIdx_t glPLActiveSliceIdxSW = 0;
 static hls::stream< sliceIdx_t > glSliceIdxStreamSW("glSliceIdxStreamSW");
 
+void muxWithPriorSW(ap_uint< 12*4 > din,  ap_uint<12> sel, ap_uint<4> *dout)
+{
+	for(int i = 11; i >= 0;  i--)
+	{
+		if(sel[i] == 1)
+		{
+			*dout = din.range(i*4 + 7, i*4);
+			break;
+		}
+	}
+}
+
 void resetPixSW(ap_uint<10> x, ap_uint<10> y, sliceIdx_t sliceIdx)
 {
 	slicesSW[sliceIdx][y][x] = 0;
@@ -519,6 +531,10 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 //		return;
 //	}
 
+    int innerI = 0, outerI = 0, innerStreakSize = 0, outerStreakSize = 0;
+    int outerStartX, outerEndX, outerStartY, outerEndY;
+    bool exit_inner_loop = 0, exit_outer_loop = 0;
+
 	const int max_scale = 2;
 	// only check if not too close to border
 	const int cs = 4;
@@ -673,7 +689,7 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 	std::cout << std::endl;
 #endif
 
-	FastDetectorisFeature_label5:for (int streak_size = OUTER_STREAK_SIZE_START; streak_size<=OUTER_STREAK_SIZE_END; streak_size++)
+	FastDetectorisFeature_label5:for (int streak_size = OUTER_STREAK_SIZE_END; streak_size>=OUTER_STREAK_SIZE_START; streak_size--)
      {
         FastDetectorisFeature_label6:for (int i=0; i<OUTER_SIZE; i++)
         {
@@ -705,16 +721,36 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
           }
         }
 
-        if (!did_break)
-        {
-          *found_streak = true;
-#if OUTER_STREAK_INFO_DEBUG
-		  cout << "Outer Corner position is : " << i << " and streak size is: " << streak_size << endl;
-#endif
-		  break;
-        }
+		if (!did_break)
+		{
+			outerI = i;
+            outerStartX = circle2_[outerI%OUTER_SIZE][0];
+            outerEndX = circle2_[(outerI + outerStreakSize - 1)%OUTER_SIZE][0];
+            outerStartY = circle2_[outerI%OUTER_SIZE][1];
+            outerEndY = circle2_[(outerI + outerStreakSize - 1)%OUTER_SIZE][1];
+			outerStreakSize = streak_size;
+
+            int condDiff = (streak_size%2 == 1) ? 0 : 1;  // If streak_size is even, then set it to 1. Otherwise 0.
+
+            if((outerStreakSize == OUTER_SIZE - 1)
+            		|| abs(outerStartX - outerEndX) <= condDiff
+            		|| abs(outerStartY - outerEndY) <= condDiff
+					)
+			{
+				*found_streak = false;
+			}
+			else
+			{
+				*found_streak = true;
+				#if OUTER_STREAK_INFO_DEBUG
+					cout << "Outer Corner position is : " << i << " and streak size is: " << streak_size << endl;
+				#endif
+			}
+			exit_outer_loop = true;
+			break;
+		}
       }
-      if (*found_streak)
+      if (*found_streak || exit_outer_loop)
       {
         break;
       }
@@ -769,7 +805,7 @@ void parseEventsSW(uint64_t * dataStream, int32_t eventsArraySize, uint64_t *eve
 
 		ap_uint<64> output;
 
-		// Changed to small endian mode to send it to jAER
+		// Changed to little endian mode to send it to jAER
 		output.range(7,0) = tmpOutput.range(31,24);
 		output.range(15,8) = tmpOutput.range(23,16);
 		output.range(23,16) = tmpOutput.range(15,8);
@@ -788,7 +824,7 @@ int main ()
     int total_err_cnt = 0;
 	int retval=0;
 	/******************* Test EVFastCornerStreamNoAxiLite module from random value**************************/
-	srand(1);
+	srand(2);
 //	srand((unsigned)time(NULL));
 
 	int32_t eventCnt = 8000;
@@ -875,7 +911,7 @@ int main ()
 
 		for (int count = 0; count < eventCnt; count = count + GROUP_EVENTS_NUM)
 		{
-			if(k == 7 && count == 1966)
+			if(k == 7 && count == 1930)
 			{
 				int tmp = 0;
 			}
@@ -1694,6 +1730,44 @@ int main ()
 //		cout << endl;
 //	}
 
+//	/******************* Test muxWithPrior module from random value**************************/
+//	srand(2);
+////	srand((unsigned)time(NULL));
+//
+//	testTimes = 4000;
+//
+//    ap_uint<12*4> dinTestData = ap_uint<48>("cba987654321", 16);
+//	ap_uint<12> selInput;
+//	ap_uint<4> doutSW, doutHW;
+//
+//	for(int k = 0; k < testTimes; k++)
+//	{
+//		cout << "Test " << k << ":" << endl;
+//
+//	    int err_cnt = 0;
+//
+//	    selInput = ap_uint<12>(rand());
+//    	cout << "selInput is: " << hex << selInput << endl;
+//
+//	    muxWithPriorSW(dinTestData, selInput, &doutSW);
+//	    testMuxWithPrior(dinTestData, selInput, &doutHW);
+//
+//	    if(doutHW != doutSW)
+//	    {
+//	    	cout << "doutSW is: " << hex << doutSW << endl;
+//	    	cout << "doutHW is: " << hex << doutHW << endl;
+//	    	cout << dec << endl;
+//	    	cout << endl;
+//	    	err_cnt++;
+//	    }
+//
+//		if(err_cnt == 0)
+//		{
+//			cout << "Test " << dec << k << " passed." << endl;
+//		}
+//		total_err_cnt += err_cnt;
+//		cout << endl;
+//	}
 
 	if (total_err_cnt == 0)
 	{

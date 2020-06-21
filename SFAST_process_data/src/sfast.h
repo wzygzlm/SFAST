@@ -8,7 +8,7 @@
 #include "assert.h"
 
 #define DEBUG 0
-#define OUTER_STREAK_INFO_DEBUG 0
+#define OUTER_STREAK_INFO_DEBUG 1
 
 #define CUST_DATA_MASK 0x3ff
 #define POLARITY_SHIFT 1
@@ -60,8 +60,12 @@
 
 #define INNER_STREAK_SIZE_START 3
 #define INNER_STREAK_SIZE_END 6
+
 #define OUTER_STREAK_SIZE_START 3
-#define OUTER_STREAK_SIZE_END OUTER_SIZE-1
+#define OUTER_STREAK_SIZE_END (OUTER_SIZE-1)
+#define OUTER_STREAK_RANGE (OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1)
+#define OUTER_STREAK_SIZE_DATA_BITS 8
+#define OUTER_STREAK_POSITION_DATA_BITS 4
 
 // SFAST hyperparameter : threshold
 #define SFAST_THRESHOLD  2
@@ -98,6 +102,7 @@ typedef ap_uint<16 * (2 * SEARCH_DISTANCE + 1)> apUint112_t;
 typedef ap_uint<6 * (2 * SEARCH_DISTANCE + 1)> apUint42_t;
 typedef ap_uint<10> apUint10_t;
 
+void testMuxWithPrior(ap_uint< 12*4 > din,  ap_uint<12> sel, ap_uint<4> *dout);
 
 void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uint<16> > &yStreamIn,
 		hls::stream< ap_uint<64> > &tsStreamIn, hls::stream< ap_uint<1> > &polStreamIn, hls::stream<sliceIdx_t> &idxStream,

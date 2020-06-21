@@ -884,13 +884,62 @@ assert(size <= OUTER_SIZE);
 	*sortedData = sortedDataRet;
 }
 
+template<int DATA_SIZE, int NUM>
+void muxWithPrior(ap_uint< NUM*DATA_SIZE > din, ap_uint< NUM > sel, ap_uint< DATA_SIZE > *dout)
+{
+#pragma HLS INLINE off
+#pragma HLS PIPELINE
+
+	ap_uint< DATA_SIZE > retData = 0;
+
+//	ap_uint< NUM > sel_prio;
+//
+//	// Convert sel to sel_prio with priority. Here less significant bits have higher priority
+//	// For example, if sel = b'1010, then sel_prio = 0010
+//	for(int i = NUM - 1; i >= 0; i--)
+//	{
+//		ap_uint<1> temp = 0;
+//		for(int j = NUM - 1; j > i; j--)
+//			{
+//				temp = temp | sel[j];
+//			}
+//		sel_prio[i] = sel[i] && !temp;
+//	}
+
+	// Convert wide bits to array for convenience
+	ap_uint< DATA_SIZE > dinArr[NUM];
+	for(int i = 0; i < NUM; i++)
+	{
+		dinArr[i] = din.range(DATA_SIZE - 1, 0);
+		din = din >> DATA_SIZE;
+	}
+
+	for(int i = 0; i < NUM; i++)
+	{
+		if(sel[i] == 1)
+		{
+			retData = dinArr[i];
+		}
+	}
+
+	*dout = retData;
+}
+
+void testMuxWithPrior(ap_uint< 12*4 > din,  ap_uint<12> sel, ap_uint<4> *dout)
+{
+#pragma HLS PIPELINE
+	muxWithPrior<4, 12>(din, sel, dout);
+}
+
+static ap_uint<8> glFinalMaxOuterStreakSize = 0;
+static ap_uint<8> glFinalMaxOuterStreakStartPosition = 0;
 
 template<int NPC>
 void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * OUTER_SIZE> sortedData, ap_uint<5> size, ap_uint<1> *isCorner)
 {
 #pragma HLS INLINE off
 
-	ap_uint<1> isCornerTemp = 0;
+	ap_uint<1> isCornerTemp = 0, isCornerRet = 0;
 	ap_uint<5*INNER_SIZE> tmpIdxInnerData;
 	ap_uint<5*OUTER_SIZE> tmpIdxOuterData;
 	ap_uint<5> idxInnerData[INNER_SIZE];
@@ -903,9 +952,17 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * O
 	ap_uint<8> streakSizeOutCorner[5] = {0, 0, 0, 0, 0};
 	ap_uint<8> streakOutCornerCnt = 0;
 
+	ap_uint<8> finalMaxOuterStreakSize = 0;
+	ap_uint<8> finalMaxOuterStreakStartPosition = 0;
+
+
 	for(uint8_t i = 0; i < OUTER_SIZE; i = i + NPC)
 	{
 #pragma HLS PIPELINE rewind
+
+		ap_uint<OUTER_STREAK_SIZE_DATA_BITS> currentMaxOuterStreakSize = 0;
+		ap_uint<OUTER_STREAK_POSITION_DATA_BITS> currentMaxOuterStreakStartPosition = 0;
+
 		InitRegion:
 		{
 			if (i == 0)
@@ -937,23 +994,27 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * O
 			}
 
 			ap_uint<1> tempCond[INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1][NPC];
-
-			for (uint8_t position = 0; position < NPC; position++)
+			for (uint8_t streakSizeIdx = 0; streakSizeIdx < INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1; streakSizeIdx++)
 			{
-				for (uint8_t streakSizeIdx = 0; streakSizeIdx < INNER_STREAK_SIZE_END - INNER_STREAK_SIZE_START + 1; streakSizeIdx++)
+				for (uint8_t position = 0; position < NPC; position++)
 				{
 					tempCond[streakSizeIdx][position] = 1;
 					for (uint8_t j = 0; j < INNER_STREAK_SIZE_START + streakSizeIdx; j++)
 					{
 						tempCond[streakSizeIdx][position] &= innerCond[streakSizeIdx][j + position];
 					}
-					isCornerTemp |= tempCond[streakSizeIdx][position];
-	//				if (isCornerTemp == 1)
-	//				{
-	//					*isCorner = isCornerTemp ;
+					// Check if the minimum of streak value is bigger than the maximum of non-streak value plus a threshold value
+					uint8_t streakSize = INNER_STREAK_SIZE_START + streakSizeIdx;
+					ap_uint<BITS_PER_PIXEL> minStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize);
+					ap_uint<BITS_PER_PIXEL> maxNonStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize - 1);
+
+					ap_uint<1> isCornerTemp = tempCond[streakSizeIdx][position] & (minStreakValue > maxNonStreakValue + SFAST_THRESHOLD);
+					if (isCornerTemp == 1)
+					{
+						isCornerRet = 1;
 	//					std::cout << "HW: Position is :" << (int)(i + k) << " and streak size is: " << (int)(n + 3) << std::endl;
 	//					return;
-	//				}
+					}
 				}
 			}
 
@@ -981,16 +1042,16 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * O
 				}
 			}
 
-			ap_uint<1> tempCond[OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1][NPC];
+			ap_uint< NPC > tempCond[OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1];
 
-			for (uint8_t position = 0; position < NPC; position++)
+			for (uint8_t streakSizeIdx = 0; streakSizeIdx < OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1; streakSizeIdx++)
 			{
-				for (uint8_t streakSizeIdx = 0; streakSizeIdx < OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1; streakSizeIdx++)
+				for (uint8_t position = 0; position < NPC; position++)
 				{
 					tempCond[streakSizeIdx][position] = 1;
 					for (uint8_t j = 0; j < OUTER_STREAK_SIZE_START + streakSizeIdx; j++)
 					{
-						tempCond[streakSizeIdx][position] &= outerCond[streakSizeIdx][j + position];
+						tempCond[streakSizeIdx][position] = tempCond[streakSizeIdx][position] & outerCond[streakSizeIdx][j + position];
 					}
 
 					// Check if the minimum of streak value is bigger than the maximum of non-streak value plus a threshold value
@@ -998,25 +1059,53 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * O
 					ap_uint<BITS_PER_PIXEL> minStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize);
 					ap_uint<BITS_PER_PIXEL> maxNonStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize - 1);
 
-					isCornerTemp |= tempCond[streakSizeIdx][position] & (minStreakValue > maxNonStreakValue + SFAST_THRESHOLD);
-//					if (tempCond[streakSizeIdx][position] == 1)
-//					{
-//						uint8_t streakSize = OUTER_STREAK_SIZE_START + streakSizeIdx;
-//						ap_uint<BITS_PER_PIXEL> minStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize);
-//						ap_uint<BITS_PER_PIXEL> maxNonStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize - 1);
-//
-//						if(minStreakValue > maxNonStreakValue)
-//						{
-//							isCornerTemp = 1;
-//						}
-//						else
-//						{
-//							isCornerTemp = 0;
-//						}
-////						streakOutCornerCnt++;
-////						std::cout << "HW: Streak corner "<< streakOutCornerCnt << ". Position is :" << (int)(i + position) << " and streak size is: " << (int)(streakSizeIdx + 4) << std::endl;
-//					}
+					tempCond[streakSizeIdx][position] = tempCond[streakSizeIdx][position] & (minStreakValue > maxNonStreakValue + SFAST_THRESHOLD);
+					ap_uint<1> isCornerTemp = tempCond[streakSizeIdx][position];
+					if(isCornerTemp == 1)
+					{
+						currentMaxOuterStreakSize = streakSize;
+						currentMaxOuterStreakStartPosition = i + position;
+						isCornerRet = 1;
+//						streakOutCornerCnt++;
+//						std::cout << "HW: Streak corner "<< streakOutCornerCnt << ". Position is :" << (int)(i + position) << " and streak size is: " << (int)(streakSizeIdx + 4) << std::endl;
+					}
 				}
+			}
+
+//			ap_uint< OUTER_STREAK_RANGE > tempCondSel = 0;
+//			ap_uint< OUTER_STREAK_RANGE *  OUTER_STREAK_SIZE_DATA_BITS > outerStreakSizeDin = 0;
+//			ap_uint< OUTER_STREAK_RANGE * NPC> streakPositionSelDin = 0;
+//
+//			// Generate the sel signal for get the maximum streak size and obtain the current max streak size in this iteration.
+//			for(int tempCondIdx = 0; tempCondIdx < OUTER_STREAK_SIZE_END - OUTER_STREAK_SIZE_START + 1; tempCondIdx++)
+//			{
+//				tempCondSel[tempCondIdx] = (tempCond[tempCondIdx] != 0);
+//				streakPositionSelDin.range((tempCondIdx + 1) * NPC - 1, tempCondIdx * NPC) = tempCond[tempCondIdx];
+//				outerStreakSizeDin.range((tempCondIdx + 1) * OUTER_STREAK_SIZE_DATA_BITS - 1, tempCondIdx * OUTER_STREAK_SIZE_DATA_BITS) = tempCondIdx + OUTER_STREAK_SIZE_START;
+//			}
+//
+//			// Get the current max streak size.
+//			ap_uint<OUTER_STREAK_SIZE_DATA_BITS> currentMaxOuterStreakSize = 0;
+//			muxWithPrior<OUTER_STREAK_SIZE_DATA_BITS, OUTER_STREAK_RANGE>(outerStreakSizeDin, tempCondSel, &currentMaxOuterStreakSize);
+//
+//			// Get the position sel signal.
+//			ap_uint<NPC> streakPositionSel = 0;
+//			muxWithPrior<NPC, OUTER_STREAK_RANGE>(streakPositionSelDin, tempCondSel, &streakPositionSel);
+//
+//			// Get the start position for the maximum streak.
+//			ap_uint<OUTER_STREAK_POSITION_DATA_BITS> currentMaxOuterStreakStartPosition = 0;
+//			ap_uint< NPC * OUTER_STREAK_POSITION_DATA_BITS > outerPositionDin = 0;
+//			for(int outerPositionIdx = 0; outerPositionIdx < NPC; outerPositionIdx++)
+//			{
+//				outerPositionDin.range((outerPositionIdx + 1) * OUTER_STREAK_POSITION_DATA_BITS - 1, outerPositionIdx * OUTER_STREAK_POSITION_DATA_BITS) = i + outerPositionIdx;
+//			}
+//			muxWithPrior<OUTER_STREAK_POSITION_DATA_BITS, NPC>(outerPositionDin, streakPositionSel, &currentMaxOuterStreakStartPosition);
+
+			// Compare the iteration max streak size to the current max streak size.
+			if(currentMaxOuterStreakSize > finalMaxOuterStreakSize)
+			{
+				finalMaxOuterStreakSize = currentMaxOuterStreakSize;
+				finalMaxOuterStreakStartPosition = currentMaxOuterStreakStartPosition;
 			}
 
 			// Cycle shift the data list NPC times since we have processed NPC data.
@@ -1032,7 +1121,24 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * O
 		}
 	}
 
-	*isCorner = isCornerTemp;
+	*isCorner = isCornerRet;
+	glFinalMaxOuterStreakSize = finalMaxOuterStreakSize;
+	glFinalMaxOuterStreakStartPosition = finalMaxOuterStreakStartPosition;
+}
+
+// This function checks if the maximum streak size corner satisfy some conditions.
+void finalCornerChecking(ap_uint<1> isCornerIn, ap_uint<1> *isCornerOut)
+{
+	ap_uint<1> isCornerRet = 0;
+	if(isCornerIn == 0 || glFinalMaxOuterStreakSize != 7 || glFinalMaxOuterStreakStartPosition != 9)
+	{
+		isCornerRet = 0;
+	}
+	else
+	{
+		isCornerRet = 1;
+	}
+	*isCornerOut = isCornerRet;
 }
 
 void feedbackInterleaveStream(ap_uint<1> isStageCorner, hls::stream< ap_uint<1> > &isFinalCornerStream)
@@ -1135,6 +1241,7 @@ void combineOutputStream(hls::stream< ap_uint<96> > &packetEventDataStream, hls:
 	tsStreamOut << ts;
 	isFinalCornerStream << cornerRet;
 
+	outEventsNum++;
 	if(cornerRet == 1)
 	{
 		cornerEventsNum++;
@@ -1212,6 +1319,7 @@ void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_u
 	ap_uint<5*OUTER_SIZE> idxDataWide;
 	ap_uint<BITS_PER_PIXEL * OUTER_SIZE> sortedData;
     ap_uint<5> idxData[OUTER_SIZE];
+    ap_uint<1> isCorner;
     ap_uint<1> isStageCorner;
 
     ap_uint<2> stageOut;
@@ -1241,7 +1349,8 @@ void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_u
 //			sizeStream2 >> size2;
 		}
 		checkIdxGeneralV3<4>(idxDataWide, sortedData, size2, &isStageCorner);   // If resource is not enough, decrease this number to increase II a little.
-		feedbackInterleaveStream(isStageCorner, stageCornerStream);
+		finalCornerChecking(isStageCorner, &isCorner);
+		feedbackInterleaveStream(isCorner, stageCornerStream);
 	}
     Output: combineOutputStream(pktEventDataStream, stageCornerStream, xStreamOut, yStreamOut, polStreamOut, tsStreamOut, isFinalCornerStream);
 //	*status = glStatus;
