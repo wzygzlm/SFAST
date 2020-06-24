@@ -12,26 +12,26 @@
   <warningLogs>
     <logs>
       <synLog>
-        <logs message="WARNING: [RTGEN 206-101] Register 'cornerEventsNum' is power-on initialization." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:40.922+0200" type="Warning"/>
-        <logs message="WARNING: [RTGEN 206-101] Register 'outEventsNum' is power-on initialization." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:40.897+0200" type="Warning"/>
-        <logs message="WARNING: [RTGEN 206-101] Register 'resetCnt_V' is power-on initialization." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:33.828+0200" type="Warning"/>
-        <logs message="WARNING: [RTGEN 206-101] Register 'inEventsNum' is power-on initialization." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:33.329+0200" type="Warning"/>
-        <logs message="WARNING: [RTGEN 206-101] Register 'sliceIdxReg_V' is power-on initialization." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:33.297+0200" type="Warning"/>
-        <logs message="WARNING: [SYN 201-103] Legalizing function name 'checkIdxGeneralV3&lt;4>' to 'checkIdxGeneralV3_4_s'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:24.401+0200" type="Warning"/>
-        <logs message="WARNING: [SYN 201-103] Legalizing function name 'Block__proc120' to 'Block_proc120'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:24.372+0200" type="Warning"/>
-        <logs message="WARNING: [SYN 201-103] Legalizing function name 'sortedIdxStreamV3&lt;4>' to 'sortedIdxStreamV3_4_s'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:24.361+0200" type="Warning"/>
-        <logs message="WARNING: [SYN 201-103] Legalizing function name 'Block__proc' to 'Block_proc'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:24.348+0200" type="Warning"/>
-        <logs message="WARNING: [ANALYSIS 214-52] Found false inter dependency for variable 'glPLSFASTSliceScale2.2'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:23.882+0200" type="Warning"/>
-        <logs message="WARNING: [ANALYSIS 214-52] Found false inter dependency for variable 'glPLSFASTSliceScale2.3'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:23.862+0200" type="Warning"/>
-        <logs message="WARNING: [ANALYSIS 214-52] Found false inter dependency for variable 'glPLSFASTSliceScale2'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:23.851+0200" type="Warning"/>
-        <logs message="WARNING: [ANALYSIS 214-52] Found false inter dependency for variable 'glPLSFASTSliceScale2.1'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:23.840+0200" type="Warning"/>
-        <logs message="WARNING: [XFORM 203-631] Renaming function 'feedbackInterleaveStream' to 'feedbackInterleaveSt' (SFAST_process_data/src/sfast.cpp:1176:3)" projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:23.815+0200" type="Warning"/>
-        <logs message="WARNING: [XFORM 203-631] Renaming function 'rwSAEPerfectLoopStreamV2&lt;2>' to 'rwSAEPerfectLoopStre' (SFAST_process_data/src/sfast.cpp:50:7)" projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:22.730+0200" type="Warning"/>
-        <logs message="WARNING: [XFORM 203-105] Cannot partition array 'glPLSFASTSliceScale2.V' : incorrect partition factor 1." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:19.176+0200" type="Warning"/>
-        <logs message="WARNING: [SYNCHK 200-23] SFAST_process_data/src/sfast.cpp:50: variable-indexed range selection may cause suboptimal QoR." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:16.039+0200" type="Warning"/>
+        <logs message="WARNING: [RTGEN 206-101] Register 'cornerEventsNum' is power-on initialization." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:39.642+0200" type="Warning"/>
+        <logs message="WARNING: [RTGEN 206-101] Register 'outEventsNum' is power-on initialization." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:39.609+0200" type="Warning"/>
+        <logs message="WARNING: [RTGEN 206-101] Register 'resetCnt_V' is power-on initialization." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:32.582+0200" type="Warning"/>
+        <logs message="WARNING: [RTGEN 206-101] Register 'inEventsNum' is power-on initialization." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:32.085+0200" type="Warning"/>
+        <logs message="WARNING: [RTGEN 206-101] Register 'sliceIdxReg_V' is power-on initialization." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:32.048+0200" type="Warning"/>
+        <logs message="WARNING: [SYN 201-103] Legalizing function name 'checkIdxGeneralV3&lt;4>' to 'checkIdxGeneralV3_4_s'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:22.611+0200" type="Warning"/>
+        <logs message="WARNING: [SYN 201-103] Legalizing function name 'Block__proc120' to 'Block_proc120'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:22.584+0200" type="Warning"/>
+        <logs message="WARNING: [SYN 201-103] Legalizing function name 'sortedIdxStreamV3&lt;4>' to 'sortedIdxStreamV3_4_s'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:22.571+0200" type="Warning"/>
+        <logs message="WARNING: [SYN 201-103] Legalizing function name 'Block__proc' to 'Block_proc'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:22.560+0200" type="Warning"/>
+        <logs message="WARNING: [ANALYSIS 214-52] Found false inter dependency for variable 'glPLSFASTSliceScale2.1'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:22.031+0200" type="Warning"/>
+        <logs message="WARNING: [ANALYSIS 214-52] Found false inter dependency for variable 'glPLSFASTSliceScale2.3'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:22.006+0200" type="Warning"/>
+        <logs message="WARNING: [ANALYSIS 214-52] Found false inter dependency for variable 'glPLSFASTSliceScale2'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:21.997+0200" type="Warning"/>
+        <logs message="WARNING: [ANALYSIS 214-52] Found false inter dependency for variable 'glPLSFASTSliceScale2.2'." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:21.988+0200" type="Warning"/>
+        <logs message="WARNING: [XFORM 203-631] Renaming function 'feedbackInterleaveStream' to 'feedbackInterleaveSt' (SFAST_process_data/src/sfast.cpp:1174:3)" projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:21.958+0200" type="Warning"/>
+        <logs message="WARNING: [XFORM 203-631] Renaming function 'rwSAEPerfectLoopStreamV2&lt;2>' to 'rwSAEPerfectLoopStre' (SFAST_process_data/src/sfast.cpp:50:7)" projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:20.644+0200" type="Warning"/>
+        <logs message="WARNING: [XFORM 203-105] Cannot partition array 'glPLSFASTSliceScale2.V' : incorrect partition factor 1." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:16.790+0200" type="Warning"/>
+        <logs message="WARNING: [SYNCHK 200-23] SFAST_process_data/src/sfast.cpp:50: variable-indexed range selection may cause suboptimal QoR." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:00:13.543+0200" type="Warning"/>
       </synLog>
       <simLog>
-        <logs message="WARNING: [COSIM 212-384] This design has internal non-blocking FIFO/Stream accesses, which may result in mismatches or simulation hanging." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T14:49:57.564+0200" type="Warning"/>
+        <logs message="WARNING: [COSIM 212-384] This design has internal non-blocking FIFO/Stream accesses, which may result in mismatches or simulation hanging." projectName="SFAST_process_data" solutionName="solution1" date="2020-06-21T17:01:00.718+0200" type="Warning"/>
       </simLog>
       <mgLog/>
       <packageLog/>

@@ -1129,6 +1129,7 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * O
 // This function checks if the maximum streak size corner satisfy some conditions.
 void finalCornerChecking(ap_uint<1> isCornerIn, ap_uint<1> *isCornerOut)
 {
+#pragma HLS PIPELINE
 	ap_uint<1> isCornerRet = 0;
 
 	if(isCornerIn == 0)
@@ -1170,7 +1171,7 @@ void finalCornerChecking(ap_uint<1> isCornerIn, ap_uint<1> *isCornerOut)
 void feedbackInterleaveStream(ap_uint<1> isStageCorner, hls::stream< ap_uint<1> > &isFinalCornerStream)
 {
 #pragma HLS INLINE off
-#pragma PIPELINE rewind
+#pragma HLS PIPELINE
 	ap_uint<2> outputStage;
 
 	static ap_uint<2> currentStage[GROUP_EVENTS_NUM];
