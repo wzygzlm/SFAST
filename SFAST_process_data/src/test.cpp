@@ -38,7 +38,7 @@ static int sae_[2][DVS_HEIGHT][DVS_WIDTH];
 static pix_t slicesSW[SLICES_NUMBER][SLICE_WIDTH][SLICE_HEIGHT];
 static pix_t slicesScale1SW[SLICES_NUMBER][SLICE_WIDTH/2][SLICE_HEIGHT/2];
 static pix_t slicesScale2SW[SLICES_NUMBER][SLICE_WIDTH/4][SLICE_HEIGHT/4];
-static sliceIdx_t glPLActiveSliceIdxSW = 0;
+static sliceIdx_t glPLActiveSliceIdxSW = 0, sliceIdxFromGTFile = 0;
 static hls::stream< sliceIdx_t > glSliceIdxStreamSW("glSliceIdxStreamSW");
 
 void muxWithPriorSW(ap_uint< 12*4 > din,  ap_uint<12> sel, ap_uint<4> *dout)
@@ -519,9 +519,12 @@ void FastDetectorisOuterFeature(int pix_x, int pix_y, int timesmp, bool polarity
 	}
 }
 
+#define MAX_SLICE_DURATION_US 300000
 static uint16_t areaEventRegsSW[AREA_NUMBER][AREA_NUMBER];
-static uint16_t areaEventThrSW = 200;
+static ap_uint<1> areaCountExceeded = false;
+static uint16_t areaEventThrSW = 700;
 uint32_t currentTs = 0, lastTs = 0;
+int outerTsValue[OUTER_SIZE];
 
 void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *found_streak)
 {
@@ -535,6 +538,7 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
     int outerStartX, outerEndX, outerStartY, outerEndY;
     bool exit_inner_loop = 0, exit_outer_loop = 0;
 
+    ap_uint<1> skipOutBorder = false;
 	const int max_scale = 2;
 	// only check if not too close to border
 	const int cs = 4;
@@ -542,23 +546,17 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 			(y >> max_scale) < cs || (y >> max_scale) >= (sensor_height_ >> max_scale) - cs)
 	{
 		*found_streak = false;
-		return;
+		skipOutBorder = true;
+//		return;
 	}
-
 
 	int pol = polarity;
 	// update SAE
 	sae_[pol][y][x] = timesmp;
 
-	// update sliceSW
-    uint16_t c = areaEventRegsSW[x/AREA_SIZE][y/AREA_SIZE];
-    // x == 0 and y == 0  and timesmp == 0 means it comes from the previous manual setting not the real x, y value.
-	c = c + 1;
-    areaEventRegsSW[x/AREA_SIZE][y/AREA_SIZE] = c;
-
     apUint1_t rotateFlg = 0;
     // The area threshold reached, rotate the slice index and clear the areaEventRegs.
-    if(c >= areaEventThrSW)
+    if( areaCountExceeded || (timesmp - currentTs) >= MAX_SLICE_DURATION_US )
     {
         glPLActiveSliceIdxSW--;
 //            idx = glPLActiveSliceIdxSW;
@@ -571,7 +569,7 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
         {
             cout << "Rotated successfully from SW!!!!" << endl;
             cout << "x is: " << x << "\t y is: " << y << "\t idx is: " << glPLActiveSliceIdxSW << endl;
-            cout << "delataTs is: " << ((currentTs - lastTs) >> 9) << endl;
+            cout << "delataTs is: " << ((currentTs - lastTs) >> 9) << " and current ts is: "<< currentTs << endl;
         }
 
         // Check the accumulation slice is clear or not
@@ -607,6 +605,18 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
     }
 
 	writePixSW(x, y, glPLActiveSliceIdxSW);
+
+	// update sliceSW
+    uint16_t c = areaEventRegsSW[x/AREA_SIZE][y/AREA_SIZE];
+    // x == 0 and y == 0  and timesmp == 0 means it comes from the previous manual setting not the real x, y value.
+	c = c + 1;
+    areaEventRegsSW[x/AREA_SIZE][y/AREA_SIZE] = c;
+    areaCountExceeded = (c >= areaEventThrSW);
+
+	if(skipOutBorder)
+	{
+		return;
+	}
 
 	// Following slice read will be only based on slice scale 2.
 	// and slice index is the t-1 slice not the current slice.
@@ -679,6 +689,11 @@ void SFastDetectorisFeature(int x, int y, int timesmp, bool polarity, bool *foun
 //  if (*found_streak)
   {
     *found_streak = false;
+
+	for (int i=0; i<OUTER_SIZE; i++)
+	{
+		outerTsValue[i] = slicesScale2SW[readSliceIdx][pix_y+circle2_[i][1]][pix_x+circle2_[i][0]];
+	}
 
 #if DEBUG
 	std::cout << "Idx Outer Data SW is: " << std::endl;
@@ -794,6 +809,11 @@ void parseEventsSW(uint64_t * dataStream, int32_t eventsArraySize, uint64_t *eve
 //			outputData1[i] = sae_[pol][y + circle2_[i][1]][x + circle2_[i][0]];
 //		}
 
+		if( i == 7990)
+		{
+			int tmp = 1;
+		}
+
 		SFastDetectorisFeature(x, y, ts, pol, &isCorner);
 
 	    glSliceIdxStreamSW << glPLActiveSliceIdxSW;  // store the curent slice index so the hw SFAST could rotate as the same with sw.
@@ -823,43 +843,54 @@ int main ()
 
     int total_err_cnt = 0;
 	int retval=0;
-	/******************* Test EVFastCornerStreamNoAxiLite module from random value**************************/
-	srand(2);
-//	srand((unsigned)time(NULL));
+
+	/******************* Test SFAST_process_data module from aedat file with GT**************************/
+	FILE * fp;
+
+	if((fp = fopen("E://xfOpenCV//hls_2018_1//SFAST//SFAST_process_data//indoor_flying1_OFResult-OFResult.bin","rb"))== NULL)
+	{
+		printf("can not open the file\n");
+		exit(0);
+	}
 
 	int32_t eventCnt = 8000;
-	uint16_t x[eventCnt], y[eventCnt], x_out[eventCnt], y_out[eventCnt];
-	uint64_t ts[eventCnt], ts_out[eventCnt];
-	ap_uint<1> pol[eventCnt], pol_out[eventCnt];
+	uint64_t x_in[eventCnt], y_in[eventCnt];
+	uint16_t x_out[eventCnt], y_out[eventCnt];
+	uint64_t ts_in[eventCnt], ts_out[eventCnt];
+	ap_uint<1> pol_in[eventCnt], pol_out[eventCnt];
 	ap_uint<10> custData_out[eventCnt];
 	uint64_t data[eventCnt];
 	uint64_t eventSlice[eventCnt], eventSliceSW[eventCnt];
+	ap_uint<11> GTData[eventCnt];
+	ap_uint<10> retDataHW[eventCnt];
 
-    hls::stream< ap_uint<16> >  xStreamIn("xStreamIn");
-    hls::stream< ap_uint<16> >  yStreamIn("yStreamIn");
-    hls::stream< ap_uint<64> > tsStreamIn("tsStreamIn");
-    hls::stream< ap_uint<1> > polStreamIn("polStreamIn");
-    hls::stream< sliceIdx_t > idxStreamIn("idxStreamIn");
+	hls::stream< ap_uint<16> >  xStreamIn("xStreamIn");
+	hls::stream< ap_uint<16> >  yStreamIn("yStreamIn");
+	hls::stream< ap_uint<64> > tsStreamIn("tsStreamIn");
+	hls::stream< ap_uint<1> > polStreamIn("polStreamIn");
+	hls::stream< sliceIdx_t > idxStreamIn("idxStreamIn");
 
-    hls::stream< ap_uint<16> >  xStreamOut1("xStreamOut1");
-    hls::stream< ap_uint<16> >  yStreamOut1("yStreamOut1");
-    hls::stream< ap_uint<64> > tsStreamOut1("tsStreamOut1");
-    hls::stream< ap_uint<1> > polStreamOut1("polStreamOut1");
-    hls::stream< ap_uint<1> > custDataStreamOut1("custDataStreamOut1");
-
-
-    hls::stream< ap_uint<16> >  xStreamOut2("xStreamOut2");
-    hls::stream< ap_uint<16> >  yStreamOut2("yStreamOut2");
-    hls::stream< ap_uint<64> > tsStreamOut2("tsStreamOut2");
-    hls::stream< ap_uint<1> > polStreamOut2("polStreamOut2");
-    hls::stream< ap_uint<1> > custDataStreamOut2("custDataStreamOut2");
+	hls::stream< ap_uint<16> >  xStreamOut1("xStreamOut1");
+	hls::stream< ap_uint<16> >  yStreamOut1("yStreamOut1");
+	hls::stream< ap_uint<64> > tsStreamOut1("tsStreamOut1");
+	hls::stream< ap_uint<1> > polStreamOut1("polStreamOut1");
+	hls::stream< ap_uint<1> > custDataStreamOut1("custDataStreamOut1");
 
 
-    hls::stream< ap_uint<16> >  xStreamOutTmp("xStreamOutTmp");
-    hls::stream< ap_uint<16> >  yStreamOutTmp("yStreamOutTmp");
-    hls::stream< ap_uint<64> > tsStreamOutTmp("tsStreamOutTmp");
-    hls::stream< ap_uint<1> > polStreamOutTmp("polStreamOutTmp");
-    hls::stream< ap_uint<1> > custDataStreamOutTmp("custDataStreamOutTmp");
+	hls::stream< ap_uint<16> >  xStreamOut2("xStreamOut2");
+	hls::stream< ap_uint<16> >  yStreamOut2("yStreamOut2");
+	hls::stream< ap_uint<64> > tsStreamOut2("tsStreamOut2");
+	hls::stream< ap_uint<1> > polStreamOut2("polStreamOut2");
+	hls::stream< ap_uint<1> > custDataStreamOut2("custDataStreamOut2");
+
+
+	hls::stream< ap_uint<16> >  xStreamOutTmp("xStreamOutTmp");
+	hls::stream< ap_uint<16> >  yStreamOutTmp("yStreamOutTmp");
+	hls::stream< ap_uint<64> > tsStreamOutTmp("tsStreamOutTmp");
+	hls::stream< ap_uint<1> > polStreamOutTmp("polStreamOutTmp");
+	hls::stream< ap_uint<1> > custDataStreamOutTmp("custDataStreamOutTmp");
+
+	sliceIdx_t idx;
 
 	ap_uint<16> xTmp, yTmp;
 	ap_uint<64> tsTmp;
@@ -870,7 +901,7 @@ int main ()
 
     uint64_t lastMaxTs = 0;  // Record last maximum ts to make all the ts are monotonic.
 
-    testTimes = 10;
+    testTimes = 40;
 
 	for(int k = 0; k < testTimes; k++)
 	{
@@ -880,68 +911,59 @@ int main ()
 
 		for (int i = 0; i < eventCnt; i++)
 		{
-			ts[i]  = rand() + lastMaxTs;
-		}
-		sort(ts, ts+eventCnt);
-		lastMaxTs = ts[eventCnt -1];
-
-		// Initial the current slice index to 0 for every test.
-		int currentSliceIdx = 0;
-		for (int count = 0; count < eventCnt; count = count + GROUP_EVENTS_NUM)
-		{
-			for(int itr = 0; itr < GROUP_EVENTS_NUM; itr++)
+			if(i == 5528)
 			{
-				int i = count + itr;
-
-				x[i] = rand()%346;
-				y[i] = rand()%260;
-				pol[i] = rand()%2;
-	//			idx = rand()%3;
-		//		x = 255;
-		//		y = 240;
-	//			cout << "x : " << x << endl;
-	//			cout << "y : " << y << endl;
-	//			cout << "idx : " << idx << endl;
-				data[i] = (uint64_t)(ts[i] << 32) + (uint64_t)(x[i] << 17) + (uint64_t)(y[i] << 2) + (pol[i].to_bool() << 1);
-	//			cout << "data[" << i << "] is: "<< hex << data[i]  << endl;
+				int tmp = 0;
 			}
+
+			ap_uint<32> buf[2];
+			fread(buf, 4, 2, fp);
+	       	uint32_t data1 = ((uint32_t)(buf[0].range(7, 0)) << 24) + ((uint32_t)(buf[0].range(15, 8)) << 16) + ((uint32_t)(buf[0].range(23, 16)) << 8) + buf[0].range(31, 24);
+	       	uint32_t data2 = ((uint32_t)(buf[1].range(7, 0)) << 24) + ((uint32_t)(buf[1].range(15, 8)) << 16) + ((uint32_t)(buf[1].range(23, 16)) << 8) + buf[1].range(31, 24);
+
+	        x_in[i] = ((data1) & AEDAT_POLARITY_X_ADDR_MASK) >> AEDAT_POLARITY_X_ADDR_SHIFT;
+			y_in[i] = ((data1) & AEDAT_POLARITY_Y_ADDR_MASK) >> AEDAT_POLARITY_Y_ADDR_SHIFT;
+			pol_in[i]  = ((data1) & AEDAT_POLARITY_MASK) >> AEDAT_POLARITY_SHIFT;
+			ts_in[i] = data2;
+
+			GTData[i] = (data1 & 0x7ff);
+
+			ap_uint<1> rotateFlg = ((GTData[i] & 0x200) >> 9);
+			if(rotateFlg)
+			{
+				sliceIdxFromGTFile = sliceIdxFromGTFile - 1;
+			}
+
+			xStreamIn << x_in[i];
+			yStreamIn << y_in[i];
+			tsStreamIn << ts_in[i];
+			polStreamIn << pol_in[i];
+			idxStreamIn << sliceIdxFromGTFile;
+
+
+			data[i] = (uint64_t)(ts_in[i] << 32) + (uint64_t)(x_in[i] << POLARITY_X_ADDR_SHIFT) + (uint64_t)(y_in[i] << POLARITY_Y_ADDR_SHIFT) + (pol_in[i] << POLARITY_SHIFT);
+//			cout << "data[" << i << "] is: "<< hex << data[i]  << endl;
 		}
 
 		parseEventsSW(data, eventCnt, eventSliceSW);
 
-		for (int count = 0; count < eventCnt; count = count + GROUP_EVENTS_NUM)
+		for (int i = 0; i < eventCnt; i++)
 		{
-			if(k == 7 && count == 1908)
-			{
-				int tmp = 0;
-			}
-			for(int processCnt = 0; processCnt < GROUP_EVENTS_NUM; processCnt++)
-			{
-				int currentIdx = count + processCnt%GROUP_EVENTS_NUM;
-				xStreamIn << x[currentIdx];
-				yStreamIn << y[currentIdx];
-				polStreamIn << pol[currentIdx];
-				tsStreamIn << ts[currentIdx];
+			// Read out the left over data in glSliceIdxStreamSW to remove warnings.
+			ap_uint<1> idxSW = glSliceIdxStreamSW.read();
 
-				SFAST_process_data(xStreamIn, yStreamIn, tsStreamIn, polStreamIn, glSliceIdxStreamSW,
-						xStreamOutTmp, yStreamOutTmp, tsStreamOutTmp, polStreamOutTmp, custDataStreamOutTmp);
+			SFAST_process_data(xStreamIn, yStreamIn, tsStreamIn, polStreamIn, idxStreamIn,
+					xStreamOutTmp, yStreamOutTmp, tsStreamOutTmp, polStreamOutTmp, custDataStreamOutTmp);
 
-				x_out[currentIdx] = xStreamOutTmp.read().to_uint();
-				y_out[currentIdx] = yStreamOutTmp.read().to_uint();
-				ts_out[currentIdx] = tsStreamOutTmp.read().to_uint();
-				pol_out[currentIdx] = polStreamOutTmp.read().to_bool();
-				custData_out[currentIdx] = custDataStreamOutTmp.read().to_uint();
-			}
+			x_out[i] = xStreamOutTmp.read().to_uint();
+			y_out[i] = yStreamOutTmp.read().to_uint();
+			ts_out[i] = tsStreamOutTmp.read().to_uint();
+			pol_out[i] = polStreamOutTmp.read().to_bool();
+			custData_out[i] = custDataStreamOutTmp.read().to_uint();
 		}
-
 
 		for (int j = 0; j < eventCnt; j++)
 		{
-			// Important info is only contained in the lower 32bits
-			uint16_t x_sw, y_sw;
-			ap_uint<1> pol_sw;
-			ap_uint<10> custData_sw;
-
 			ap_uint<32> tmpOutput = ap_uint<32>(eventSliceSW[j]);
 
 			// Change the order back
@@ -951,21 +973,26 @@ int main ()
 			tmpData.range(23,16) = tmpOutput.range(15,8);
 			tmpData.range(31,24) = tmpOutput.range(7,0);
 
-			x_sw = tmpData.range(21, 12);
-			y_sw = tmpData.range(31, 22);
-			pol_sw = tmpData[11];
-			custData_sw = tmpData.range(10, 0);
+			ap_uint<10> x_sw = tmpData.range(21, 12);
+			ap_uint<10> y_sw = tmpData.range(31, 22);
+			ap_uint<1> pol_sw = tmpData[11];
+			ap_uint<10> custData_sw = tmpData.range(10, 0);
 
 			x_sw = sensor_width_ - 1 - x_sw;
 			y_sw = sensor_height_ - 1 - y_sw;
-			if (x_sw != x_out[j] || y_sw != y_out[j] || pol_sw != pol_out[j] || custData_sw != custData_out[j])
+
+			if ( (custData_sw.bit(0) != GTData[j].bit(10)) )
 			{
-				cout << "j : " << j << endl;
+//				if((GTData[j].range(7, 0) != custDataOutSW[j].range(7, 0)))
+//				{
+//					cout << "C++ testbench is not same as the java version." << endl;
+//				}
 				cout << "x_sw : " << x_sw << "\t x_hw is: " << x_out[j] << endl;
 				cout << "y_sw : " << y_sw << "\t y_hw is: " << y_out[j] << endl;
-				cout << "pol_sw : " << pol_sw << "\t pol_hw is: " << pol_out[j] << endl;
-				cout << "corner_sw : " << custData_sw.to_int() << "\t corner_hw is: " << custData_out[j].to_int() << endl;
-
+				std::cout << "Corner of SW is: " << hex << custData_sw << std::endl;
+				std::cout << "Corner of HW is: " << hex << custData_out[j] << std::endl;
+				std::cout << "Corner of GT is: " << hex << GTData[j].bit(10) << std::endl;
+				cout << dec;
 				err_cnt++;
 				cout << "Mismatch detected on TEST " << k << " and the mismatch index is: " << j << endl;
 			}
@@ -975,13 +1002,169 @@ int main ()
 		{
 			cout << "Test " << k << " passed." << endl;
 		}
-		else
-		{
-			cout << "Test " << k << " failed!!!" << endl;
-		}
 		total_err_cnt += err_cnt;
 		cout << endl;
 	}
+
+//	/******************* Test EVFastCornerStreamNoAxiLite module from random value**************************/
+//	srand(2);
+////	srand((unsigned)time(NULL));
+//
+//	int32_t eventCnt = 8000;
+//	uint16_t x[eventCnt], y[eventCnt], x_out[eventCnt], y_out[eventCnt];
+//	uint64_t ts[eventCnt], ts_out[eventCnt];
+//	ap_uint<1> pol[eventCnt], pol_out[eventCnt];
+//	ap_uint<10> custData_out[eventCnt];
+//	uint64_t data[eventCnt];
+//	uint64_t eventSlice[eventCnt], eventSliceSW[eventCnt];
+//
+//    hls::stream< ap_uint<16> >  xStreamIn("xStreamIn");
+//    hls::stream< ap_uint<16> >  yStreamIn("yStreamIn");
+//    hls::stream< ap_uint<64> > tsStreamIn("tsStreamIn");
+//    hls::stream< ap_uint<1> > polStreamIn("polStreamIn");
+//    hls::stream< sliceIdx_t > idxStreamIn("idxStreamIn");
+//
+//    hls::stream< ap_uint<16> >  xStreamOut1("xStreamOut1");
+//    hls::stream< ap_uint<16> >  yStreamOut1("yStreamOut1");
+//    hls::stream< ap_uint<64> > tsStreamOut1("tsStreamOut1");
+//    hls::stream< ap_uint<1> > polStreamOut1("polStreamOut1");
+//    hls::stream< ap_uint<1> > custDataStreamOut1("custDataStreamOut1");
+//
+//
+//    hls::stream< ap_uint<16> >  xStreamOut2("xStreamOut2");
+//    hls::stream< ap_uint<16> >  yStreamOut2("yStreamOut2");
+//    hls::stream< ap_uint<64> > tsStreamOut2("tsStreamOut2");
+//    hls::stream< ap_uint<1> > polStreamOut2("polStreamOut2");
+//    hls::stream< ap_uint<1> > custDataStreamOut2("custDataStreamOut2");
+//
+//
+//    hls::stream< ap_uint<16> >  xStreamOutTmp("xStreamOutTmp");
+//    hls::stream< ap_uint<16> >  yStreamOutTmp("yStreamOutTmp");
+//    hls::stream< ap_uint<64> > tsStreamOutTmp("tsStreamOutTmp");
+//    hls::stream< ap_uint<1> > polStreamOutTmp("polStreamOutTmp");
+//    hls::stream< ap_uint<1> > custDataStreamOutTmp("custDataStreamOutTmp");
+//
+//	ap_uint<16> xTmp, yTmp;
+//	ap_uint<64> tsTmp;
+//	ap_uint<1>  polTmp, custDataTmp;
+//
+//    ap_uint<32> config = 0;
+//    status_t status;
+//
+//    uint64_t lastMaxTs = 0;  // Record last maximum ts to make all the ts are monotonic.
+//
+//    testTimes = 10;
+//
+//	for(int k = 0; k < testTimes; k++)
+//	{
+//		cout << "Test " << k << ":" << endl;
+//
+//	    int err_cnt = 0;
+//
+//		for (int i = 0; i < eventCnt; i++)
+//		{
+//			ts[i]  = rand() + lastMaxTs;
+//		}
+//		sort(ts, ts+eventCnt);
+//		lastMaxTs = ts[eventCnt -1];
+//
+//		// Initial the current slice index to 0 for every test.
+//		int currentSliceIdx = 0;
+//		for (int count = 0; count < eventCnt; count = count + GROUP_EVENTS_NUM)
+//		{
+//			for(int itr = 0; itr < GROUP_EVENTS_NUM; itr++)
+//			{
+//				int i = count + itr;
+//
+//				x[i] = rand()%346;
+//				y[i] = rand()%260;
+//				pol[i] = rand()%2;
+//	//			idx = rand()%3;
+//		//		x = 255;
+//		//		y = 240;
+//	//			cout << "x : " << x << endl;
+//	//			cout << "y : " << y << endl;
+//	//			cout << "idx : " << idx << endl;
+//				data[i] = (uint64_t)(ts[i] << 32) + (uint64_t)(x[i] << 17) + (uint64_t)(y[i] << 2) + (pol[i].to_bool() << 1);
+//	//			cout << "data[" << i << "] is: "<< hex << data[i]  << endl;
+//			}
+//		}
+//
+//		parseEventsSW(data, eventCnt, eventSliceSW);
+//
+//		for (int count = 0; count < eventCnt; count = count + GROUP_EVENTS_NUM)
+//		{
+//			if(k == 7 && count == 1908)
+//			{
+//				int tmp = 0;
+//			}
+//			for(int processCnt = 0; processCnt < GROUP_EVENTS_NUM; processCnt++)
+//			{
+//				int currentIdx = count + processCnt%GROUP_EVENTS_NUM;
+//				xStreamIn << x[currentIdx];
+//				yStreamIn << y[currentIdx];
+//				polStreamIn << pol[currentIdx];
+//				tsStreamIn << ts[currentIdx];
+//
+//				SFAST_process_data(xStreamIn, yStreamIn, tsStreamIn, polStreamIn, glSliceIdxStreamSW,
+//						xStreamOutTmp, yStreamOutTmp, tsStreamOutTmp, polStreamOutTmp, custDataStreamOutTmp);
+//
+//				x_out[currentIdx] = xStreamOutTmp.read().to_uint();
+//				y_out[currentIdx] = yStreamOutTmp.read().to_uint();
+//				ts_out[currentIdx] = tsStreamOutTmp.read().to_uint();
+//				pol_out[currentIdx] = polStreamOutTmp.read().to_bool();
+//				custData_out[currentIdx] = custDataStreamOutTmp.read().to_uint();
+//			}
+//		}
+//
+//
+//		for (int j = 0; j < eventCnt; j++)
+//		{
+//			// Important info is only contained in the lower 32bits
+//			uint16_t x_sw, y_sw;
+//			ap_uint<1> pol_sw;
+//			ap_uint<10> custData_sw;
+//
+//			ap_uint<32> tmpOutput = ap_uint<32>(eventSliceSW[j]);
+//
+//			// Change the order back
+//			ap_uint<64> tmpData;
+//			tmpData.range(7,0) = tmpOutput.range(31,24);
+//			tmpData.range(15,8) = tmpOutput.range(23,16);
+//			tmpData.range(23,16) = tmpOutput.range(15,8);
+//			tmpData.range(31,24) = tmpOutput.range(7,0);
+//
+//			x_sw = tmpData.range(21, 12);
+//			y_sw = tmpData.range(31, 22);
+//			pol_sw = tmpData[11];
+//			custData_sw = tmpData.range(10, 0);
+//
+//			x_sw = sensor_width_ - 1 - x_sw;
+//			y_sw = sensor_height_ - 1 - y_sw;
+//			if (x_sw != x_out[j] || y_sw != y_out[j] || pol_sw != pol_out[j] || custData_sw != custData_out[j])
+//			{
+//				cout << "j : " << j << endl;
+//				cout << "x_sw : " << x_sw << "\t x_hw is: " << x_out[j] << endl;
+//				cout << "y_sw : " << y_sw << "\t y_hw is: " << y_out[j] << endl;
+//				cout << "pol_sw : " << pol_sw << "\t pol_hw is: " << pol_out[j] << endl;
+//				cout << "corner_sw : " << custData_sw.to_int() << "\t corner_hw is: " << custData_out[j].to_int() << endl;
+//
+//				err_cnt++;
+//				cout << "Mismatch detected on TEST " << k << " and the mismatch index is: " << j << endl;
+//			}
+//		}
+//
+//		if(err_cnt == 0)
+//		{
+//			cout << "Test " << k << " passed." << endl;
+//		}
+//		else
+//		{
+//			cout << "Test " << k << " failed!!!" << endl;
+//		}
+//		total_err_cnt += err_cnt;
+//		cout << endl;
+//	}
 
 //	/******************* Test parseEvents module from random value**************************/
 //	srand(3);

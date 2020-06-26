@@ -8,7 +8,7 @@
 #include "assert.h"
 
 #define DEBUG 0
-#define OUTER_STREAK_INFO_DEBUG 1
+#define OUTER_STREAK_INFO_DEBUG 0
 
 #define CUST_DATA_MASK 0x3ff
 #define POLARITY_SHIFT 1
@@ -17,6 +17,13 @@
 #define POLARITY_Y_ADDR_MASK 0x000001FF      //  Reduce mask bit width to reduce LUTs
 #define POLARITY_X_ADDR_SHIFT 17
 #define POLARITY_X_ADDR_MASK 0x000001FF      //  Reduce mask bit width to reduce LUTs
+
+#define AEDAT_POLARITY_SHIFT 11
+#define AEDAT_POLARITY_MASK (1 << AEDAT_POLARITY_SHIFT)  // 1 bit at bit 11
+#define AEDAT_POLARITY_Y_ADDR_SHIFT 22
+#define AEDAT_POLARITY_Y_ADDR_MASK (511 << AEDAT_POLARITY_Y_ADDR_SHIFT) // 9 bits from bits 22 to 30
+#define AEDAT_POLARITY_X_ADDR_SHIFT 12
+#define AEDAT_POLARITY_X_ADDR_MASK (1023 << AEDAT_POLARITY_X_ADDR_SHIFT) // 10 bits from bits 12 to 21
 
 #define SLICES_NUMBER 4
 #define SLICE_WIDTH  512
@@ -68,7 +75,7 @@
 #define OUTER_STREAK_POSITION_DATA_BITS 4
 
 // SFAST hyperparameter : threshold
-#define SFAST_THRESHOLD  2
+#define SFAST_THRESHOLD  3
 
 typedef struct
 {
