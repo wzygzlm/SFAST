@@ -19,7 +19,7 @@ static col_pix_t glPLSFASTSliceScale2[SLICES_NUMBER][SLICE_WIDTH/4][SLICE_HEIGHT
 //const ap_int<64> innerTest =  ap_int<64>("0111101f0ffff0f1", 16);
 //const ap_int<96> outerTest = ap_int<96>("021221202f1e0efeefe0e1f2", 16);
 
-const ap_int<96> innerTest =  ap_int<96>("1f0ffff0f1011110", 16);
+const ap_int<96> innerTest = ap_int<96>("1f0ffff0f1011110", 16);
 const ap_int<96> outerTest = ap_int<96>("2f1e0efeefe0e1f202122120", 16);
 
 static ap_uint<2> glStage = 0;
@@ -29,7 +29,7 @@ static hls::stream< ap_uint<2> >  glStageInStream("stageInStream");
 static uint32_t glInitCounter = 0, glFeedbackCounter = 0;
 
 // It takes 8192 cycles to reset the whole slice, so we use 13 bits.
-static ap_uint<13> resetCnt;
+static ap_uint<10> resetCnt;
 
 pix_t readPixFromCol(col_pix_t colData, ap_uint<8> idx)
 {
@@ -167,7 +167,7 @@ void writePix(apUint10_t x, apUint10_t y, sliceIdx_t sliceIdx)
     glPLSlicesScale2[sliceIdx][xScale2][yScale2/COMBINED_PIXELS] = tmpDataScale2;
 }
 
-void resetSFASTPix(apUint10_t x, apUint10_t y, sliceIdx_t sliceIdx)
+void resetSFASTPix(apUint10_t y, apUint10_t x, sliceIdx_t sliceIdx)
 {
 #pragma HLS INLINE
 	glPLSFASTSliceScale2[sliceIdx][y][x/COMBINED_PIXELS] = 0;
@@ -596,13 +596,35 @@ void preProcessStream(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uin
 	// A register to store current slice index and init it as 0
 	// Update it only when the input idxStreamIn is not empty;
 	static sliceIdx_t sliceIdxReg = 0;
-	if(!idxStreamIn.empty())
+	static sliceIdx_t lastSiceIdx = 0, currentSliceIdx = 0;
+	lastSiceIdx = currentSliceIdx;
+//	if(!idxStreamIn.empty())
 	{
 		sliceIdxReg = idxStreamIn.read();
 	}
-	else
+//	else
 	{
 //		sliceIdxReg = sliceIdxReg;
+	}
+	currentSliceIdx = sliceIdxReg;
+
+	if(currentSliceIdx != lastSiceIdx)
+	{
+        // Check the accumulation slice is clear or not, only for debugging
+//        for(int32_t yAddr = 0; yAddr < SLICE_WIDTH/4; yAddr++)
+//        {
+//            for(int32_t xAddr = 0; xAddr < SLICE_HEIGHT/4; xAddr = xAddr + COMBINED_PIXELS)
+//            {
+//                if (glPLSFASTSliceScale2[currentSliceIdx][yAddr][xAddr/COMBINED_PIXELS] != 0)
+//                {
+//                    for(int r = 0; r < 1; r++)
+//                    {
+//                        std::cout << "Ha! I caught you from HW, the pixel which is not clear!" << std::endl;
+//                        std::cout << "x is: " << xAddr << "\t y is: " << yAddr << "\t idx is: " << currentSliceIdx << std::endl;
+//                    }
+//                }
+//            }
+//        }
 	}
 
 	ap_uint<96> tmpOutput;
@@ -622,8 +644,8 @@ void preProcessStream(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uin
 	if ((x >> max_scale) < cs || (x >> max_scale) >= (DVS_REAL_WIDTH >> max_scale) - cs ||
 			(y >> max_scale) < cs || (y >> max_scale) >= (DVS_REAL_HEIGHT >> max_scale) - cs)
 	{
-		x = 0;
-		y = 0;
+//		x = 0;
+//		y = 0;
 		ts = 0;
 	}
 	else
@@ -634,14 +656,13 @@ void preProcessStream(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uin
 //		y -= cs-4;
 	}
 
-
 	xStreamOut << (X_TYPE)x;
 	yStreamOut << (Y_TYPE)y;
 	polStreamOut << pol;
 	tsStreamOut << (ap_uint<TS_TYPE_BIT_WIDTH>)ts;
 	idxStreamOut << sliceIdxReg;
 
-	//	xStreamOut << (X_TYPE)x;
+//	xStreamOut << (X_TYPE)x;
 //	yStreamOut << (Y_TYPE)y;
 //	tsStreamOut << (ap_uint<TS_TYPE_BIT_WIDTH>)ts;
 
@@ -716,13 +737,13 @@ void rwSAEPerfectLoopStreamV2(hls::stream<X_TYPE> &xStream, hls::stream<Y_TYPE> 
 			idx = idxStream.read();
 			writeSFASTPix(x, y, idx);
 
-			resetSFASTPix(resetCnt/(PIXS_PER_COL/4), (resetCnt % (PIXS_PER_COL/4)) * COMBINED_PIXELS, (sliceIdx_t)(idx + 3));
+			resetSFASTPix(ap_uint<10>((resetCnt/(PIXS_PER_COL/4)) % (SLICE_WIDTH/4)), ap_uint<10>((resetCnt % (PIXS_PER_COL/4)) * COMBINED_PIXELS), (sliceIdx_t)(idx + 3));
 			resetCnt++;
 
-			if(x == 0 && y == 0 && ts == 0)
+			if(ts == 0)
 			{
 				size = 0;
-				break;
+//				break;
 			}
 		}
 		else
@@ -767,9 +788,9 @@ void rwSAEPerfectLoopStreamV2(hls::stream<X_TYPE> &xStream, hls::stream<Y_TYPE> 
                 tmpData.range(BITS_PER_PIXEL * OUTER_SIZE - 1, BITS_PER_PIXEL * OUTER_SIZE - BITS_PER_PIXEL) = ((stage == 0) && (i >= INNER_SIZE)) ?  pix_t(0) : tmpTmpData;
             }
 
-//			resetSFASTPix(resetCnt/(PIXS_PER_COL), (resetCnt % (PIXS_PER_COL)) * COMBINED_PIXELS, (sliceIdx_t)(idx + 3));
+//			resetSFASTPix(ap_uint<10>((resetCnt/(PIXS_PER_COL/4)) % (SLICE_WIDTH/4)), ap_uint<10>((resetCnt % (PIXS_PER_COL/4)) * COMBINED_PIXELS), (sliceIdx_t)(idx + 3));
 //			resetCnt++;
-//			resetSFASTPix(resetCnt/(PIXS_PER_COL), (resetCnt % (PIXS_PER_COL)) * COMBINED_PIXELS, (sliceIdx_t)(idx + 3));
+//			resetSFASTPix(ap_uint<10>((resetCnt/(PIXS_PER_COL/4)) % (SLICE_WIDTH/4)), ap_uint<10>((resetCnt % (PIXS_PER_COL/4)) * COMBINED_PIXELS), (sliceIdx_t)(idx + 3));
 //			resetCnt++;
 		}
 	}
@@ -1298,6 +1319,7 @@ void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_u
 #pragma HLS INTERFACE axis register both port=yStreamIn
 #pragma HLS INTERFACE axis register both port=xStreamIn
 #pragma HLS INTERFACE axis register both port=polStreamIn
+#pragma HLS INTERFACE axis register both port=idxStreamIn
 #pragma HLS DATAFLOW
 
 	ap_uint<TS_TYPE_BIT_WIDTH> outer[OUTER_SIZE];

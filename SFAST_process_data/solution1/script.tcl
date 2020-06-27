@@ -5,8 +5,8 @@
 ############################################################
 open_project SFAST_process_data
 set_top SFAST_process_data
-add_files SFAST_process_data/src/sfast.cpp
 add_files SFAST_process_data/src/sfast.h
+add_files SFAST_process_data/src/sfast.cpp
 add_files -tb SFAST_process_data/src/test.cpp
 open_solution "solution1"
 set_part {xc7z100ffg900-1} -tool vivado

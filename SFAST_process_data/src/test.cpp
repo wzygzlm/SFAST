@@ -816,7 +816,7 @@ void parseEventsSW(uint64_t * dataStream, int32_t eventsArraySize, uint64_t *eve
 
 		SFastDetectorisFeature(x, y, ts, pol, &isCorner);
 
-	    glSliceIdxStreamSW << glPLActiveSliceIdxSW;  // store the curent slice index so the hw SFAST could rotate as the same with sw.
+	    glSliceIdxStreamSW << glPLActiveSliceIdxSW;  // store the current slice index so the hw SFAST could rotate as the same with sw.
 
 		x = sensor_width_ - 1 - x;
 		y = sensor_height_ - 1 - y;
@@ -901,7 +901,7 @@ int main ()
 
     uint64_t lastMaxTs = 0;  // Record last maximum ts to make all the ts are monotonic.
 
-    testTimes = 40;
+    testTimes = 30;
 
 	for(int k = 0; k < testTimes; k++)
 	{
@@ -981,9 +981,9 @@ int main ()
 			x_sw = sensor_width_ - 1 - x_sw;
 			y_sw = sensor_height_ - 1 - y_sw;
 
-			if ( (custData_sw.bit(0) != GTData[j].bit(10)) )
+			if ( (custData_out[j].bit(0) != custData_sw.bit(0)) || (custData_sw.bit(0) != GTData[j].bit(10)) )
 			{
-//				if((GTData[j].range(7, 0) != custDataOutSW[j].range(7, 0)))
+//				if((custData_sw.bit(0) != GTData[j].bit(10)))
 //				{
 //					cout << "C++ testbench is not same as the java version." << endl;
 //				}
@@ -1006,7 +1006,7 @@ int main ()
 		cout << endl;
 	}
 
-//	/******************* Test EVFastCornerStreamNoAxiLite module from random value**************************/
+//	/******************* Test SFAST_process_data module from random value**************************/
 //	srand(2);
 ////	srand((unsigned)time(NULL));
 //
