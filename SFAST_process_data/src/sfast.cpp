@@ -6,9 +6,11 @@
 static col_pix_t glPLSlices[SLICES_NUMBER][SLICE_WIDTH][SLICE_HEIGHT/COMBINED_PIXELS];
 static col_pix_t glPLSlicesScale1[SLICES_NUMBER][SLICE_WIDTH/2][SLICE_HEIGHT/COMBINED_PIXELS/2];
 static col_pix_t glPLSlicesScale2[SLICES_NUMBER][SLICE_WIDTH/4][SLICE_HEIGHT/COMBINED_PIXELS/4];
-static sliceIdx_t glPLActiveSliceIdx = 0, glPLTminus1SliceIdx, glPLTminus2SliceIdx;
 
 static col_pix_t glPLSFASTSliceScale2[SLICES_NUMBER][SLICE_WIDTH/4][SLICE_HEIGHT/COMBINED_PIXELS/4];
+
+sliceIdx_t oldIdx = 0;
+
 
 //const int innerCircleOffset[INNER_SIZE][2] = {{0, 1}, {1, 1}, {1, 0}, {1, -1},
 //		{0, -1}, {-1, -1}, {-1, 0}, {-1, 1}};
@@ -354,7 +356,6 @@ void readBlockSFASTScale2(apUint10_t x, apUint10_t y, sliceIdx_t sliceIdxRef, sl
 	}
 }
 
-sliceIdx_t oldIdx = glPLActiveSliceIdx;
 void rwSlices(hls::stream<apUint10_t> &xStream, hls::stream<apUint10_t> &yStream, hls::stream<sliceIdx_t> &idxStream,
 			  hls::stream<apIntBlockCol_t> &refStreamOut, hls::stream<apIntBlockCol_t> &tagStreamOut,
 			  hls::stream<apIntBlockCol_t> &refStreamOutScale1, hls::stream<apIntBlockCol_t> &tagStreamOutScale1,
@@ -575,14 +576,18 @@ void rwSlices(hls::stream<apUint10_t> &xStream, hls::stream<apUint10_t> &yStream
 static ap_uint<32> glConfig;
 static status_t glStatus;
 static uint64_t inEventsNum;
+static uint16_t areaEventRegs[AREA_NUMBER][AREA_NUMBER];
+
 void preProcessStream(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uint<16> > &yStreamIn,
-		hls::stream< ap_uint<1> > &polStreamIn, hls::stream<sliceIdx_t> &idxStreamIn,
+		hls::stream< ap_uint<1> > &polStreamIn,
 		hls::stream< ap_uint<64> > &tsStreamIn,
 		hls::stream<X_TYPE> &xStreamOut, hls::stream<Y_TYPE> &yStreamOut, hls::stream< ap_uint<1> > &polStreamOut,
 		hls::stream<sliceIdx_t> &idxStreamOut,
 		hls::stream< ap_uint<TS_TYPE_BIT_WIDTH> > &tsStreamOut, hls::stream< ap_uint<96> > &packetEventDataStream)
 {
-#pragma HLS PIPELINE
+//#pragma HLS PIPELINE
+#pragma HLS RESOURCE variable=areaEventRegs core=RAM_2P_LUTRAM
+#pragma HLS ARRAY_PARTITION variable=areaEventRegs complete dim=2
 	ap_uint<16> x;
 	ap_uint<16> y;
 	ap_uint<64> ts;
@@ -597,35 +602,72 @@ void preProcessStream(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uin
 	// Update it only when the input idxStreamIn is not empty;
 	static sliceIdx_t sliceIdxReg = 0;
 	static sliceIdx_t lastSiceIdx = 0, currentSliceIdx = 0;
-	lastSiceIdx = currentSliceIdx;
+	static uint32_t lastTsHW = 0, currentTsHW = 0;
+	static ap_uint<1> areaCountExceeded = false;
+
 //	if(!idxStreamIn.empty())
 	{
-		sliceIdxReg = idxStreamIn.read();
+//		sliceIdxReg = idxStreamIn.read();
 	}
 //	else
 	{
 //		sliceIdxReg = sliceIdxReg;
 	}
-	currentSliceIdx = sliceIdxReg;
 
-	if(currentSliceIdx != lastSiceIdx)
+	static uint16_t tmpThr = INIT_AREA_THERSHOLD;
+	ap_uint<1> rotateFlagTmp = 0;
+	if ( areaCountExceeded || (ts - currentTsHW) >= MAX_SLICE_DURATION_US )
 	{
-        // Check the accumulation slice is clear or not, only for debugging
-//        for(int32_t yAddr = 0; yAddr < SLICE_WIDTH/4; yAddr++)
-//        {
-//            for(int32_t xAddr = 0; xAddr < SLICE_HEIGHT/4; xAddr = xAddr + COMBINED_PIXELS)
-//            {
-//                if (glPLSFASTSliceScale2[currentSliceIdx][yAddr][xAddr/COMBINED_PIXELS] != 0)
-//                {
-//                    for(int r = 0; r < 1; r++)
-//                    {
-//                        std::cout << "Ha! I caught you from HW, the pixel which is not clear!" << std::endl;
-//                        std::cout << "x is: " << xAddr << "\t y is: " << yAddr << "\t idx is: " << currentSliceIdx << std::endl;
-//                    }
-//                }
-//            }
-//        }
+		rotateFlagTmp = 1;
+		sliceIdxReg--;
+
+		lastSiceIdx = currentSliceIdx;
+		currentSliceIdx = sliceIdxReg;
+
+		if(currentSliceIdx != lastSiceIdx)
+		{
+	        // Check the accumulation slice is clear or not, only for debugging
+	//        for(int32_t yAddr = 0; yAddr < SLICE_WIDTH/4; yAddr++)
+	//        {
+	//            for(int32_t xAddr = 0; xAddr < SLICE_HEIGHT/4; xAddr = xAddr + COMBINED_PIXELS)
+	//            {
+	//                if (glPLSFASTSliceScale2[currentSliceIdx][yAddr][xAddr/COMBINED_PIXELS] != 0)
+	//                {
+	//                    for(int r = 0; r < 1; r++)
+	//                    {
+	//                        std::cout << "Ha! I caught you from HW, the pixel which is not clear!" << std::endl;
+	//                        std::cout << "x is: " << xAddr << "\t y is: " << yAddr << "\t idx is: " << currentSliceIdx << std::endl;
+	//                    }
+	//                }
+	//            }
+	//        }
+		}
+
+	    lastTsHW = currentTsHW;
+	    currentTsHW = ts;
+
+	    for(int r = 0; r < 1; r++)
+		{
+			std::cout << "Rotated successfully from HW!!!!" << std::endl;
+			std::cout << "x is: " << x << "\t y is: " << y << "\t idx is: " << sliceIdxReg << std::endl;
+			std::cout << "delataTsHW is: " << ((currentTsHW - lastTsHW) >> 9) << std::endl;
+		}
+
+		rotateSliceResetLoop:for(int areaX = 0; areaX < AREA_NUMBER; areaX += 1)
+		{
+#pragma HLS PIPELINE
+#pragma HLS INLINE off
+			for(int areaY = 0; areaY < AREA_NUMBER; areaY++)
+			{
+				areaEventRegs[areaX][areaY] = 0;
+			}
+		}
 	}
+
+	uint16_t c = areaEventRegs[x/AREA_SIZE][y/AREA_SIZE];
+	c = c + 1;
+	areaEventRegs[x/AREA_SIZE][y/AREA_SIZE] = c;
+    areaCountExceeded = (c >= tmpThr);
 
 	ap_uint<96> tmpOutput;
 	tmpOutput[32] = ap_uint<1>(pol);
@@ -1301,7 +1343,7 @@ void combineOutputStream(hls::stream< ap_uint<96> > &packetEventDataStream, hls:
 
 
 void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uint<16> > &yStreamIn,
-		hls::stream< ap_uint<64> > &tsStreamIn, hls::stream< ap_uint<1> > &polStreamIn, hls::stream<sliceIdx_t> &idxStreamIn,
+		hls::stream< ap_uint<64> > &tsStreamIn, hls::stream< ap_uint<1> > &polStreamIn,
 		hls::stream< ap_uint<16> > &xStreamOut, hls::stream< ap_uint<16> > &yStreamOut, hls::stream< ap_uint<64> > &tsStreamOut, hls::stream< ap_uint<1> > &polStreamOut,
 		hls::stream< ap_uint<1> > &isFinalCornerStream)
 //		ap_uint<32> config, status_t *status)
@@ -1319,7 +1361,7 @@ void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_u
 #pragma HLS INTERFACE axis register both port=yStreamIn
 #pragma HLS INTERFACE axis register both port=xStreamIn
 #pragma HLS INTERFACE axis register both port=polStreamIn
-#pragma HLS INTERFACE axis register both port=idxStreamIn
+//#pragma HLS INTERFACE axis register both port=idxStreamIn
 #pragma HLS DATAFLOW
 
 	ap_uint<TS_TYPE_BIT_WIDTH> outer[OUTER_SIZE];
@@ -1375,7 +1417,7 @@ void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_u
 
 //    glConfig = config;
 
-    GetData: preProcessStream(xStreamIn, yStreamIn, polStreamIn, idxStreamIn, tsStreamIn, xStream, yStream, polStream, idxStream, tsStream, pktEventDataStream);
+    GetData: preProcessStream(xStreamIn, yStreamIn, polStreamIn, tsStreamIn, xStream, yStream, polStream, idxStream, tsStream, pktEventDataStream);
     Processing:
 	{
 //		initStageInterleaveStream(&stageOut);

@@ -522,7 +522,7 @@ void FastDetectorisOuterFeature(int pix_x, int pix_y, int timesmp, bool polarity
 #define MAX_SLICE_DURATION_US 300000
 static uint16_t areaEventRegsSW[AREA_NUMBER][AREA_NUMBER];
 static ap_uint<1> areaCountExceeded = false;
-static uint16_t areaEventThrSW = 700;
+static uint16_t areaEventThrSW = INIT_AREA_THERSHOLD;
 uint32_t currentTs = 0, lastTs = 0;
 int outerTsValue[OUTER_SIZE];
 
@@ -938,7 +938,7 @@ int main ()
 			yStreamIn << y_in[i];
 			tsStreamIn << ts_in[i];
 			polStreamIn << pol_in[i];
-			idxStreamIn << sliceIdxFromGTFile;
+//			idxStreamIn << sliceIdxFromGTFile;
 
 
 			data[i] = (uint64_t)(ts_in[i] << 32) + (uint64_t)(x_in[i] << POLARITY_X_ADDR_SHIFT) + (uint64_t)(y_in[i] << POLARITY_Y_ADDR_SHIFT) + (pol_in[i] << POLARITY_SHIFT);
@@ -952,7 +952,7 @@ int main ()
 			// Read out the left over data in glSliceIdxStreamSW to remove warnings.
 			ap_uint<1> idxSW = glSliceIdxStreamSW.read();
 
-			SFAST_process_data(xStreamIn, yStreamIn, tsStreamIn, polStreamIn, idxStreamIn,
+			SFAST_process_data(xStreamIn, yStreamIn, tsStreamIn, polStreamIn,
 					xStreamOutTmp, yStreamOutTmp, tsStreamOutTmp, polStreamOutTmp, custDataStreamOutTmp);
 
 			x_out[i] = xStreamOutTmp.read().to_uint();

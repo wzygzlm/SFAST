@@ -49,6 +49,8 @@
 #define SEARCH_DISTANCE 3
 #define AREA_NUMBER 32
 #define AREA_SIZE (SLICE_WIDTH/AREA_NUMBER)
+#define INIT_AREA_THERSHOLD 700
+#define MAX_SLICE_DURATION_US 300000
 
 #define X_TYPE ap_uint<10>
 #define Y_TYPE ap_uint<10>
@@ -112,7 +114,7 @@ typedef ap_uint<10> apUint10_t;
 void testMuxWithPrior(ap_uint< 12*4 > din,  ap_uint<12> sel, ap_uint<4> *dout);
 
 void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uint<16> > &yStreamIn,
-		hls::stream< ap_uint<64> > &tsStreamIn, hls::stream< ap_uint<1> > &polStreamIn, hls::stream<sliceIdx_t> &idxStream,
+		hls::stream< ap_uint<64> > &tsStreamIn, hls::stream< ap_uint<1> > &polStreamIn,
 		hls::stream< ap_uint<16> > &xStreamOut, hls::stream< ap_uint<16> > &yStreamOut, hls::stream< ap_uint<64> > &tsStreamOut, hls::stream< ap_uint<1> > &polStreamOut,
 		hls::stream< ap_uint<1> > &isFinalCornerStream);
 //		ap_uint<32> config, status_t *status);
