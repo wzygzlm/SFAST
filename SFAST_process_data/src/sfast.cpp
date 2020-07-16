@@ -1277,7 +1277,7 @@ static uint64_t outEventsNum, cornerEventsNum;
 void combineOutputStream(hls::stream< ap_uint<96> > &packetEventDataStream, hls::stream< ap_uint<1> > &stageCornerStream,
 						hls::stream< ap_uint<16> > &xStreamOut, hls::stream< ap_uint<16> > &yStreamOut,
 						hls::stream< ap_uint<1> > &polStreamOut,
-						hls::stream< ap_uint<64> > &tsStreamOut, hls::stream< ap_uint<1> > &isFinalCornerStream)
+						hls::stream< ap_uint<64> > &tsStreamOut, hls::stream< ap_uint<10> > &custDataStreamOut)
 {
 #pragma HLS PIPELINE
 	ap_uint<96> tmpOutput;
@@ -1302,51 +1302,51 @@ void combineOutputStream(hls::stream< ap_uint<96> > &packetEventDataStream, hls:
 	pixelData = (cornerRet == 1) ? 0xaa : 0;
 
 	ap_uint<10> retData;
-	retData = cornerRet;
+	retData = (glConfig[0] == 1) ? ap_uint<10>(pixelData) : ap_uint<10>(cornerRet);
 
-//	if(glConfig[0])                   // This is filter mode.
-//	{
-//		if(cornerRet == 1 || ts.range(14,0) == 0) // time wrapping events should not be skipped
-//		{
-//			xStreamOut << x;
-//			yStreamOut << y;
-//			polStreamOut << pol;
-//			tsStreamOut << ts;
-//			custDataStreamOut << pixelData;
-//
-//		}
-//	}
-//	else                           // This is forward mode.
-//	{
-//		xStreamOut << x;
-//		yStreamOut << y;
-//		polStreamOut << pol;
-//		tsStreamOut << ts;
-//		custDataStreamOut << pixelData;
-//	}
+	if(glConfig[1])                   // This is filter mode.
+	{
+		if(cornerRet == 1)
+		{
+			xStreamOut << x;
+			yStreamOut << y;
+			polStreamOut << pol;
+			tsStreamOut << ts;
+			custDataStreamOut << retData;
 
-	xStreamOut << x;
-	yStreamOut << y;
-	polStreamOut << pol;
-	tsStreamOut << ts;
-	isFinalCornerStream << cornerRet;
+		}
+	}
+	else                           // This is forward mode.
+	{
+		xStreamOut << x;
+		yStreamOut << y;
+		polStreamOut << pol;
+		tsStreamOut << ts;
+		custDataStreamOut << retData;
+	}
+
+//	xStreamOut << x;
+//	yStreamOut << y;
+//	polStreamOut << pol;
+//	tsStreamOut << ts;
+//	custDataStreamOut << cornerRet;
 
 	outEventsNum++;
 	if(cornerRet == 1)
 	{
 		cornerEventsNum++;
 	}
-//	outEventsNum++;
-//	glStatus.cornerEventsNum = cornerEventsNum;
-//	glStatus.outEventsNum = outEventsNum;
+	outEventsNum++;
+	glStatus.cornerEventsNum = cornerEventsNum;
+	glStatus.outEventsNum = outEventsNum;
 }
 
 
 void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uint<16> > &yStreamIn,
 		hls::stream< ap_uint<64> > &tsStreamIn, hls::stream< ap_uint<1> > &polStreamIn,
 		hls::stream< ap_uint<16> > &xStreamOut, hls::stream< ap_uint<16> > &yStreamOut, hls::stream< ap_uint<64> > &tsStreamOut, hls::stream< ap_uint<1> > &polStreamOut,
-		hls::stream< ap_uint<1> > &isFinalCornerStream)
-//		ap_uint<32> config, status_t *status)
+		hls::stream< ap_uint<10> > &isFinalCornerStream,
+		ap_uint<32> config, status_t *status)
 {
 #pragma HLS STREAM variable=glStageInStream depth=10 dim=1
 #pragma HLS INTERFACE axis register both port=isFinalCornerStream
@@ -1415,7 +1415,7 @@ void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_u
 
     ap_uint<2> stageOut;
 
-//    glConfig = config;
+    glConfig = config;
 
     GetData: preProcessStream(xStreamIn, yStreamIn, polStreamIn, tsStreamIn, xStream, yStream, polStream, idxStream, tsStream, pktEventDataStream);
     Processing:
@@ -1444,6 +1444,5 @@ void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_u
 		feedbackInterleaveStream(isCorner, stageCornerStream);
 	}
     Output: combineOutputStream(pktEventDataStream, stageCornerStream, xStreamOut, yStreamOut, polStreamOut, tsStreamOut, isFinalCornerStream);
-//	*status = glStatus;
+	*status = glStatus;
 }
-

@@ -37,6 +37,8 @@
   "Files": {
     "CSource": ["..\/src\/sfast.cpp"],
     "Vhdl": [
+      "impl\/vhdl\/Block_proc.vhd",
+      "impl\/vhdl\/Block_proc124.vhd",
       "impl\/vhdl\/checkIdxGeneralV3_4_s.vhd",
       "impl\/vhdl\/combineOutputStream.vhd",
       "impl\/vhdl\/feedbackInterleaveSt.vhd",
@@ -47,24 +49,33 @@
       "impl\/vhdl\/fifo_w5_d3_A.vhd",
       "impl\/vhdl\/fifo_w8_d2_A.vhd",
       "impl\/vhdl\/fifo_w10_d2_S.vhd",
+      "impl\/vhdl\/fifo_w32_d2_A.vhd",
       "impl\/vhdl\/fifo_w32_d2_S.vhd",
+      "impl\/vhdl\/fifo_w32_d7_A.vhd",
       "impl\/vhdl\/fifo_w48_d2_A.vhd",
       "impl\/vhdl\/fifo_w48_d10_S.vhd",
       "impl\/vhdl\/fifo_w60_d2_A.vhd",
+      "impl\/vhdl\/fifo_w64_d7_A.vhd",
       "impl\/vhdl\/fifo_w96_d10_S.vhd",
       "impl\/vhdl\/finalCornerChecking.vhd",
       "impl\/vhdl\/preProcessStream.vhd",
       "impl\/vhdl\/preProcessStream_bkb.vhd",
       "impl\/vhdl\/rwSAEPerfectLoopSIfE.vhd",
       "impl\/vhdl\/rwSAEPerfectLoopStre.vhd",
+      "impl\/vhdl\/SFAST_process_data_e_1.vhd",
+      "impl\/vhdl\/SFAST_process_data_e_1_1.vhd",
       "impl\/vhdl\/SFAST_process_datHfu.vhd",
       "impl\/vhdl\/SFAST_process_datMgi.vhd",
       "impl\/vhdl\/sortedIdxStreamV3_4_s.vhd",
-      "impl\/vhdl\/start_for_combineOgC.vhd",
-      "impl\/vhdl\/start_for_rwSAEPeNgs.vhd",
+      "impl\/vhdl\/start_for_Block_pOgC.vhd",
+      "impl\/vhdl\/start_for_Block_pQgW.vhd",
+      "impl\/vhdl\/start_for_rwSAEPePgM.vhd",
+      "impl\/vhdl\/start_for_SFAST_pNgs.vhd",
       "impl\/vhdl\/SFAST_process_data.vhd"
     ],
     "Verilog": [
+      "impl\/verilog\/Block_proc.v",
+      "impl\/verilog\/Block_proc124.v",
       "impl\/verilog\/checkIdxGeneralV3_4_s.v",
       "impl\/verilog\/combineOutputStream.v",
       "impl\/verilog\/feedbackInterleaveSt.v",
@@ -75,10 +86,13 @@
       "impl\/verilog\/fifo_w5_d3_A.v",
       "impl\/verilog\/fifo_w8_d2_A.v",
       "impl\/verilog\/fifo_w10_d2_S.v",
+      "impl\/verilog\/fifo_w32_d2_A.v",
       "impl\/verilog\/fifo_w32_d2_S.v",
+      "impl\/verilog\/fifo_w32_d7_A.v",
       "impl\/verilog\/fifo_w48_d2_A.v",
       "impl\/verilog\/fifo_w48_d10_S.v",
       "impl\/verilog\/fifo_w60_d2_A.v",
+      "impl\/verilog\/fifo_w64_d7_A.v",
       "impl\/verilog\/fifo_w96_d10_S.v",
       "impl\/verilog\/finalCornerChecking.v",
       "impl\/verilog\/preProcessStream.v",
@@ -87,11 +101,15 @@
       "impl\/verilog\/rwSAEPerfectLoopSIfE.v",
       "impl\/verilog\/rwSAEPerfectLoopSIfE_ram.dat",
       "impl\/verilog\/rwSAEPerfectLoopStre.v",
+      "impl\/verilog\/SFAST_process_data_e_1.v",
+      "impl\/verilog\/SFAST_process_data_e_1_1.v",
       "impl\/verilog\/SFAST_process_datHfu.v",
       "impl\/verilog\/SFAST_process_datMgi.v",
       "impl\/verilog\/sortedIdxStreamV3_4_s.v",
-      "impl\/verilog\/start_for_combineOgC.v",
-      "impl\/verilog\/start_for_rwSAEPeNgs.v",
+      "impl\/verilog\/start_for_Block_pOgC.v",
+      "impl\/verilog\/start_for_Block_pQgW.v",
+      "impl\/verilog\/start_for_rwSAEPePgM.v",
+      "impl\/verilog\/start_for_SFAST_pNgs.v",
       "impl\/verilog\/SFAST_process_data.v"
     ],
     "Misc": ["impl\/misc\/logo.png"]
@@ -123,6 +141,15 @@
       "polarity": "ACTIVE_LOW",
       "ctype": {"RST": {"Type": "bool"}}
     },
+    "config_V": {
+      "type": "data",
+      "dir": "in",
+      "width": "32",
+      "ctype": {"DATA": {
+          "Type": "integer unsigned",
+          "Width": "32"
+        }}
+    },
     "isFinalCornerStream_V_V": {
       "type": "axi4stream",
       "mode": "master",
@@ -131,13 +158,13 @@
       "ctype": {
         "TDATA": {
           "Type": "integer unsigned",
-          "Width": "1",
-          "Bits": "8"
+          "Width": "10",
+          "Bits": "16"
         },
         "TVALID": {"Type": "bool"},
         "TREADY": {"Type": "bool"}
       },
-      "port_width": {"TDATA": "8"}
+      "port_width": {"TDATA": "16"}
     },
     "polStreamIn_V_V": {
       "type": "axi4stream",
@@ -170,6 +197,33 @@
         "TREADY": {"Type": "bool"}
       },
       "port_width": {"TDATA": "8"}
+    },
+    "status_cornerEventsNum": {
+      "type": "data",
+      "dir": "out",
+      "width": "64",
+      "ctype": {"DATA": {
+          "Type": "integer signed",
+          "Width": "64"
+        }}
+    },
+    "status_inEventsNum": {
+      "type": "data",
+      "dir": "out",
+      "width": "64",
+      "ctype": {"DATA": {
+          "Type": "integer signed",
+          "Width": "64"
+        }}
+    },
+    "status_outEventsNum": {
+      "type": "data",
+      "dir": "out",
+      "width": "64",
+      "ctype": {"DATA": {
+          "Type": "integer signed",
+          "Width": "64"
+        }}
     },
     "tsStreamIn_V_V": {
       "type": "axi4stream",
@@ -361,7 +415,7 @@
     },
     "isFinalCornerStream_V_V_TDATA": {
       "dir": "out",
-      "width": "8"
+      "width": "16"
     },
     "isFinalCornerStream_V_V_TVALID": {
       "dir": "out",
@@ -369,6 +423,34 @@
     },
     "isFinalCornerStream_V_V_TREADY": {
       "dir": "in",
+      "width": "1"
+    },
+    "config_V": {
+      "dir": "in",
+      "width": "32"
+    },
+    "status_inEventsNum": {
+      "dir": "out",
+      "width": "64"
+    },
+    "status_inEventsNum_ap_vld": {
+      "dir": "out",
+      "width": "1"
+    },
+    "status_outEventsNum": {
+      "dir": "out",
+      "width": "64"
+    },
+    "status_outEventsNum_ap_vld": {
+      "dir": "out",
+      "width": "1"
+    },
+    "status_cornerEventsNum": {
+      "dir": "out",
+      "width": "64"
+    },
+    "status_cornerEventsNum_ap_vld": {
+      "dir": "out",
       "width": "1"
     },
     "ap_clk": {
@@ -416,27 +498,54 @@
     "xStreamOut_V_V": {
       "interfaceRef": "xStreamOut_V_V",
       "dir": "out",
-      "firstOutLatency": "0"
+      "firstOutLatency": "1"
     },
     "yStreamOut_V_V": {
       "interfaceRef": "yStreamOut_V_V",
       "dir": "out",
-      "firstOutLatency": "0"
+      "firstOutLatency": "1"
     },
     "tsStreamOut_V_V": {
       "interfaceRef": "tsStreamOut_V_V",
       "dir": "out",
-      "firstOutLatency": "0"
+      "firstOutLatency": "1"
     },
     "polStreamOut_V_V": {
       "interfaceRef": "polStreamOut_V_V",
       "dir": "out",
-      "firstOutLatency": "0"
+      "firstOutLatency": "1"
     },
     "isFinalCornerStream_V_V": {
       "interfaceRef": "isFinalCornerStream_V_V",
       "dir": "out",
+      "firstOutLatency": "1"
+    },
+    "config_V": {
+      "interfaceRef": "config_V",
+      "dir": "in",
+      "dataWidth": "32",
+      "handshakeRef": "ap_none"
+    },
+    "status_inEventsNum": {
+      "interfaceRef": "status_inEventsNum",
+      "dir": "out",
+      "dataWidth": "64",
+      "handshakeRef": "ap_vld",
       "firstOutLatency": "0"
+    },
+    "status_outEventsNum": {
+      "interfaceRef": "status_outEventsNum",
+      "dir": "out",
+      "dataWidth": "64",
+      "handshakeRef": "ap_vld",
+      "firstOutLatency": "3"
+    },
+    "status_cornerEventsNum": {
+      "interfaceRef": "status_cornerEventsNum",
+      "dir": "out",
+      "dataWidth": "64",
+      "handshakeRef": "ap_vld",
+      "firstOutLatency": "3"
     },
     "ap_ctrl": {
       "interfaceRef": "ap_ctrl",
@@ -464,12 +573,28 @@
           "InstanceName": "rwSAEPerfectLoopStre_U0"
         },
         {
-          "ModuleName": "combineOutputStream",
-          "InstanceName": "combineOutputStream_U0"
+          "ModuleName": "Block_proc124",
+          "InstanceName": "Block_proc124_U0",
+          "Instances": [{
+              "ModuleName": "combineOutputStream",
+              "InstanceName": "grp_combineOutputStream_fu_100"
+            }]
         },
         {
           "ModuleName": "finalCornerChecking",
           "InstanceName": "finalCornerChecking_U0"
+        },
+        {
+          "ModuleName": "SFAST_process_data_e_1",
+          "InstanceName": "SFAST_process_data_e_1_U0"
+        },
+        {
+          "ModuleName": "SFAST_process_data_e_1_1",
+          "InstanceName": "SFAST_process_data_e_1_1_U0"
+        },
+        {
+          "ModuleName": "Block_proc",
+          "InstanceName": "Block_proc_U0"
         },
         {
           "ModuleName": "feedbackInterleaveSt",
@@ -478,6 +603,69 @@
       ]
     },
     "Metrics": {
+      "SFAST_process_data_e_1": {
+        "Latency": {
+          "LatencyBest": "0",
+          "LatencyAvg": "0",
+          "LatencyWorst": "0",
+          "PipelineII": "0",
+          "PipelineDepth": "",
+          "PipelineType": "none"
+        },
+        "Timing": {
+          "Target": "10.00",
+          "Uncertainty": "1.25",
+          "Estimate": "3.63"
+        },
+        "Area": {
+          "FF": "3",
+          "LUT": "29",
+          "BRAM_18K": "0",
+          "DSP48E": "0"
+        }
+      },
+      "SFAST_process_data_e_1_1": {
+        "Latency": {
+          "LatencyBest": "0",
+          "LatencyAvg": "0",
+          "LatencyWorst": "0",
+          "PipelineII": "0",
+          "PipelineDepth": "",
+          "PipelineType": "none"
+        },
+        "Timing": {
+          "Target": "10.00",
+          "Uncertainty": "1.25",
+          "Estimate": "7.27"
+        },
+        "Area": {
+          "FF": "3",
+          "LUT": "38",
+          "BRAM_18K": "0",
+          "DSP48E": "0"
+        }
+      },
+      "Block_proc": {
+        "Latency": {
+          "LatencyBest": "0",
+          "LatencyAvg": "0",
+          "LatencyWorst": "0",
+          "PipelineII": "0",
+          "PipelineDepth": "",
+          "PipelineType": "none"
+        },
+        "Timing": {
+          "Target": "10.00",
+          "Uncertainty": "1.25",
+          "Estimate": "7.27"
+        },
+        "Area": {
+          "FF": "2",
+          "LUT": "29",
+          "BRAM_18K": "0",
+          "DSP48E": "0"
+        }
+      },
       "preProcessStream": {
         "Latency": {
           "LatencyBest": "4",
@@ -503,7 +691,7 @@
           }],
         "Area": {
           "FF": "1645",
-          "LUT": "1906",
+          "LUT": "1915",
           "BRAM_18K": "0",
           "DSP48E": "0"
         }
@@ -644,21 +832,42 @@
       },
       "combineOutputStream": {
         "Latency": {
-          "LatencyBest": "1",
-          "LatencyAvg": "1",
-          "LatencyWorst": "1",
+          "LatencyBest": "2",
+          "LatencyAvg": "2",
+          "LatencyWorst": "2",
           "PipelineII": "1",
-          "PipelineDepth": "2",
+          "PipelineDepth": "3",
           "PipelineType": "function"
         },
         "Timing": {
           "Target": "10.00",
           "Uncertainty": "1.25",
-          "Estimate": "3.63"
+          "Estimate": "5.40"
         },
         "Area": {
-          "FF": "376",
-          "LUT": "404",
+          "FF": "560",
+          "LUT": "468",
+          "BRAM_18K": "0",
+          "DSP48E": "0"
+        }
+      },
+      "Block_proc124": {
+        "Latency": {
+          "LatencyBest": "3",
+          "LatencyAvg": "3",
+          "LatencyWorst": "3",
+          "PipelineII": "3",
+          "PipelineDepth": "",
+          "PipelineType": "none"
+        },
+        "Timing": {
+          "Target": "10.00",
+          "Uncertainty": "1.25",
+          "Estimate": "5.40"
+        },
+        "Area": {
+          "FF": "1017",
+          "LUT": "800",
           "BRAM_18K": "0",
           "DSP48E": "0"
         }
@@ -681,8 +890,8 @@
         },
         "Area": {
           "BRAM_18K": "32",
-          "FF": "5167",
-          "LUT": "9328",
+          "FF": "5844",
+          "LUT": "10105",
           "DSP48E": "0"
         }
       }
@@ -690,7 +899,7 @@
   },
   "GenData": {
     "DataVersion": "0.1",
-    "Time": "2020-07-05 21:22:36 +0200",
+    "Time": "2020-07-16 19:37:47 +0200",
     "ToolName": "vivado_hls",
     "ToolVersion": "2018.1"
   }

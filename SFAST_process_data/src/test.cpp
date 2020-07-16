@@ -888,7 +888,7 @@ int main ()
 	hls::stream< ap_uint<16> >  yStreamOutTmp("yStreamOutTmp");
 	hls::stream< ap_uint<64> > tsStreamOutTmp("tsStreamOutTmp");
 	hls::stream< ap_uint<1> > polStreamOutTmp("polStreamOutTmp");
-	hls::stream< ap_uint<1> > custDataStreamOutTmp("custDataStreamOutTmp");
+	hls::stream< ap_uint<10> > custDataStreamOutTmp("custDataStreamOutTmp");
 
 	sliceIdx_t idx;
 
@@ -953,7 +953,8 @@ int main ()
 			ap_uint<1> idxSW = glSliceIdxStreamSW.read();
 
 			SFAST_process_data(xStreamIn, yStreamIn, tsStreamIn, polStreamIn,
-					xStreamOutTmp, yStreamOutTmp, tsStreamOutTmp, polStreamOutTmp, custDataStreamOutTmp);
+					xStreamOutTmp, yStreamOutTmp, tsStreamOutTmp, polStreamOutTmp,
+					custDataStreamOutTmp, config, &status);
 
 			x_out[i] = xStreamOutTmp.read().to_uint();
 			y_out[i] = yStreamOutTmp.read().to_uint();
