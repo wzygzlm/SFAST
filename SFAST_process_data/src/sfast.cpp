@@ -1350,8 +1350,8 @@ void SFAST_process_data(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_u
 {
 #pragma HLS STREAM variable=glStageInStream depth=10 dim=1
 #pragma HLS INTERFACE axis register both port=isFinalCornerStream
-//#pragma HLS INTERFACE s_axilite port=status bundle=config
-//#pragma HLS INTERFACE s_axilite port=config bundle=config
+#pragma HLS INTERFACE s_axilite port=status bundle=config
+#pragma HLS INTERFACE s_axilite port=config bundle=config
 #pragma HLS INTERFACE axis register both port=tsStreamOut
 #pragma HLS INTERFACE axis register both port=polStreamOut
 #pragma HLS INTERFACE axis register both port=yStreamOut
