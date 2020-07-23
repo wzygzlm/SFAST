@@ -84,6 +84,7 @@ typedef struct
 	uint64_t inEventsNum;
 	uint64_t outEventsNum;
 	uint64_t cornerEventsNum;
+	uint32_t currentThreshold;
 } status_t;
 
 // Valid pixel occupancy paramter

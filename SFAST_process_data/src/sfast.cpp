@@ -11,6 +11,7 @@ static col_pix_t glPLSFASTSliceScale2[SLICES_NUMBER][SLICE_WIDTH/4][SLICE_HEIGHT
 
 sliceIdx_t oldIdx = 0;
 
+uint8_t glSFASTThr = SFAST_THRESHOLD, glSFASTThrBak = glSFASTThr; // Init value
 
 //const int innerCircleOffset[INNER_SIZE][2] = {{0, 1}, {1, 1}, {1, 0}, {1, -1},
 //		{0, -1}, {-1, -1}, {-1, 0}, {-1, 1}};
@@ -1032,6 +1033,15 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * O
 			{
 				tmpIdxInnerData = idxData;
 				tmpIdxOuterData = idxData;
+				if(glConfig[2] == 1)         // Using external threshold
+				{
+					glSFASTThr = glConfig.range(15, 8);
+				}
+				else                        // Using the onboard hardcoded threshold
+				{
+					glSFASTThr = SFAST_THRESHOLD;
+				}
+				glSFASTThrBak = glSFASTThr;  // store it in the shadow register for status output
 			}
 		}
 
@@ -1071,7 +1081,7 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * O
 					ap_uint<BITS_PER_PIXEL> minStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize);
 					ap_uint<BITS_PER_PIXEL> maxNonStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize - 1);
 
-					ap_uint<1> isCornerTemp = tempCond[streakSizeIdx][position] & (minStreakValue > maxNonStreakValue + SFAST_THRESHOLD);
+					ap_uint<1> isCornerTemp = tempCond[streakSizeIdx][position] & (minStreakValue > maxNonStreakValue + glSFASTThr);
 					if (isCornerTemp == 1)
 					{
 						isCornerRet = 1;
@@ -1122,7 +1132,7 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * O
 					ap_uint<BITS_PER_PIXEL> minStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize);
 					ap_uint<BITS_PER_PIXEL> maxNonStreakValue = readUnitDataFromWideData<BITS_PER_PIXEL, BITS_PER_PIXEL * OUTER_SIZE>(sortedData, OUTER_SIZE - streakSize - 1);
 
-					tempCond[streakSizeIdx][position] = tempCond[streakSizeIdx][position] & (minStreakValue > maxNonStreakValue + SFAST_THRESHOLD);
+					tempCond[streakSizeIdx][position] = tempCond[streakSizeIdx][position] & (minStreakValue > maxNonStreakValue + glSFASTThr);
 					ap_uint<1> isCornerTemp = tempCond[streakSizeIdx][position];
 					if(isCornerTemp == 1)
 					{
@@ -1339,6 +1349,7 @@ void combineOutputStream(hls::stream< ap_uint<96> > &packetEventDataStream, hls:
 	outEventsNum++;
 	glStatus.cornerEventsNum = cornerEventsNum;
 	glStatus.outEventsNum = outEventsNum;
+	glStatus.currentThreshold = glSFASTThrBak;
 }
 
 
