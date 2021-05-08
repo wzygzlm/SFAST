@@ -11,7 +11,11 @@ static col_pix_t glPLSFASTSliceScale2[SLICES_NUMBER][SLICE_WIDTH/4][SLICE_HEIGHT
 
 sliceIdx_t oldIdx = 0;
 
+static ap_uint<32> glConfig;
+static status_t glStatus;
+static uint64_t inEventsNum;
 uint8_t glSFASTThr = SFAST_THRESHOLD, glSFASTThrBak = glSFASTThr; // Init value
+uint16_t glSFASTAreaCntThr = INIT_AREA_THERSHOLD, glSFASTAreaCntThrBak = glSFASTAreaCntThr; // Init value
 
 //const int innerCircleOffset[INNER_SIZE][2] = {{0, 1}, {1, 1}, {1, 0}, {1, -1},
 //		{0, -1}, {-1, -1}, {-1, 0}, {-1, 1}};
@@ -574,9 +578,6 @@ void rwSlices(hls::stream<apUint10_t> &xStream, hls::stream<apUint10_t> &yStream
 
 }
 
-static ap_uint<32> glConfig;
-static status_t glStatus;
-static uint64_t inEventsNum;
 static uint16_t areaEventRegs[AREA_NUMBER][AREA_NUMBER];
 
 void preProcessStream(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uint<16> > &yStreamIn,
@@ -615,7 +616,18 @@ void preProcessStream(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uin
 //		sliceIdxReg = sliceIdxReg;
 	}
 
-	static uint16_t tmpThr = INIT_AREA_THERSHOLD;
+//	static uint16_t tmpThr = INIT_AREA_THERSHOLD;
+
+	if(glConfig[3] == 1)         // Using external threshold
+	{
+		glSFASTAreaCntThr = glConfig.range(23, 8);
+	}
+//	else                        // Using the onboard hardcoded threshold
+//	{
+//		glSFASTAreaCntThr = SFAST_THRESHOLD;
+//	}
+	glSFASTAreaCntThrBak = glSFASTAreaCntThr;  // store it in the shadow register for status output
+
 	ap_uint<1> rotateFlagTmp = 0;
 	if ( areaCountExceeded || (ts - currentTsHW) >= MAX_SLICE_DURATION_US )
 	{
@@ -668,7 +680,7 @@ void preProcessStream(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uin
 	uint16_t c = areaEventRegs[x/AREA_SIZE][y/AREA_SIZE];
 	c = c + 1;
 	areaEventRegs[x/AREA_SIZE][y/AREA_SIZE] = c;
-    areaCountExceeded = (c >= tmpThr);
+    areaCountExceeded = (c >= glSFASTAreaCntThr);
 
 	ap_uint<96> tmpOutput;
 	tmpOutput[32] = ap_uint<1>(pol);
@@ -711,6 +723,7 @@ void preProcessStream(hls::stream< ap_uint<16> > &xStreamIn, hls::stream< ap_uin
 
 	inEventsNum++;
 	glStatus.inEventsNum = inEventsNum;
+	glStatus.currentAreaCntThr = glSFASTAreaCntThr;
 }
 
 void initStageInterleaveStream(ap_uint<2> *stageOutStream)
@@ -1037,10 +1050,10 @@ void checkIdxGeneralV3(ap_uint<5*OUTER_SIZE> idxData, ap_uint<BITS_PER_PIXEL * O
 				{
 					glSFASTThr = glConfig.range(15, 8);
 				}
-				else                        // Using the onboard hardcoded threshold
-				{
-					glSFASTThr = SFAST_THRESHOLD;
-				}
+//				else                        // Using the onboard hardcoded threshold
+//				{
+//					glSFASTThr = SFAST_THRESHOLD;
+//				}
 				glSFASTThrBak = glSFASTThr;  // store it in the shadow register for status output
 			}
 		}
