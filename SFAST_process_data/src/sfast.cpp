@@ -1325,7 +1325,8 @@ void combineOutputStream(hls::stream< ap_uint<96> > &packetEventDataStream, hls:
 	pixelData = (cornerRet == 1) ? 0xaa : 0;
 
 	ap_uint<10> retData;
-	retData = (glConfig[0] == 1) ? ap_uint<10>(pixelData) : ap_uint<10>(cornerRet);
+//	retData = (glConfig[0] == 1) ? ap_uint<10>(pixelData) : ap_uint<10>(cornerRet);
+	retData = (glConfig[0] == 1) ?  ap_uint<10>(1) : ap_uint<10>(cornerRet); // glConfig[0] = 1 means set all events as corners, fake corner mode.
 
 	if(glConfig[1])                   // This is filter mode.
 	{
