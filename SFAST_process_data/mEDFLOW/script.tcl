@@ -8,10 +8,10 @@ set_top SFAST_process_data
 add_files SFAST_process_data/src/sfast.cpp
 add_files SFAST_process_data/src/sfast.h
 add_files -tb SFAST_process_data/src/test.cpp
-open_solution "solution1"
-set_part {xc7z100ffg900-1} -tool vivado
+open_solution "mEDFLOW"
+set_part {xc7z035ffg676-2} -tool vivado
 create_clock -period 10 -name default
-#source "./SFAST_process_data/solution1/directives.tcl"
+#source "./SFAST_process_data/mEDFLOW/directives.tcl"
 csim_design
 csynth_design
 cosim_design -trace_level all

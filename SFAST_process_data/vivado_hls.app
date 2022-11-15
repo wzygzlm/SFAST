@@ -6,11 +6,12 @@
     </Simulation>
     <files xmlns="">
         <file name="../src/test.cpp" sc="0" tb="1" cflags=" "/>
-        <file name="SFAST_process_data/src/sfast.cpp" sc="0" tb="false" cflags=""/>
         <file name="SFAST_process_data/src/sfast.h" sc="0" tb="false" cflags=""/>
+        <file name="SFAST_process_data/src/sfast.cpp" sc="0" tb="false" cflags=""/>
     </files>
     <solutions xmlns="">
-        <solution name="solution1" status="active"/>
+        <solution name="solution1" status="inactive"/>
+        <solution name="mEDFLOW" status="active"/>
     </solutions>
 </project>
 
